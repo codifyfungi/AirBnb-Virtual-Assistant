@@ -1,27 +1,23 @@
 import imaplib
-import os
-from dotenv import load_dotenv
 import email
 import re
 from collections import defaultdict
-load_dotenv() 
-em = os.getenv("EMAIL")
-password = os.getenv("PASSWORD")
-
 def fetch(em,password):
+
+    threads = defaultdict(list)
+
     mail = imaplib.IMAP4_SSL("imap.gmail.com")
     mail.login(em, password)
     mail.select("inbox")
     #Data is a list of byte strings
-    status, data = mail.search(None,'(ALL HEADER FROM "express@airbnb.com")')
+    status, data = mail.search(None,'(HEADER FROM "express@airbnb.com")')
     if status == "OK":
         print(data)
     #Create list of ids corresponding to an email
     all_ids = b" ".join(data).split()
     #print(all_ids)
-    threads = defaultdict(list)
-    for i in range(100):
-        status, msg_data = mail.fetch(all_ids[i],"(RFC822)")
+    for uid in all_ids[:10]:
+        status, msg_data = mail.fetch(uid,"(RFC822)")
         msg = email.message_from_bytes(msg_data[0][1])
         # msg is your email.message.Message from msg_data[0][1]
         plain_body = ""
@@ -71,10 +67,5 @@ def fetch(em,password):
             message = m.group(1).strip()
             threads[thread_id].append(message)
         else:
-            print("Couldn't find the message block.")  
+            print("Couldn't find the message block.")
     return threads
-threads = fetch(em,password)
-for thread_id,messages in threads.items():
-    print(thread_id)
-    for message in messages:
-        print(message)
