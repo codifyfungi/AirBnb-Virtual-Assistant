@@ -5,7 +5,7 @@ import './App.css'
 import ThreadBox from "./ThreadBox";
 
 // API base URL - change this if your Flask server runs on a different port
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'import.meta.env.VITE_API_URL';
 
 function App() {
   const [threads, setThreads] = useState([]);

@@ -14,8 +14,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-EM = os.getenv("EMAIL")
-PASSWORD = os.getenv("PASSWORD")
 with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
 def get_openrouter_chat() -> ChatOpenAI:
