@@ -16,7 +16,7 @@ CORS(app)
 
 EM = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
-with open("CheckInInstructions.txt", "r", encoding="latin-1") as f:
+with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
