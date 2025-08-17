@@ -3,11 +3,30 @@ import email
 import re
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 from collections import defaultdict
+import sqlite3
+from dotenv import load_dotenv
+load_dotenv()
+import os
+import quopri
+from bs4 import BeautifulSoup
+
+conn = sqlite3.connect("airbnb.db")
+cursor = conn.cursor()
+
+# Create table for clients
+# Create table for messages
+# message id is email uid
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS messages (
+    message_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    content TEXT,
+    name TEXT,
+    host INTEGER,
+    FOREIGN KEY (thread_id) REFERENCES clients(thread_id)
+)
+""")
 def fetch(em,password):
-
-    threads = defaultdict(list)
-    thread_name = {}
-
     mail = imaplib.IMAP4_SSL("imap.gmail.com")
     mail.login(em, password)
     mail.select("inbox")
@@ -18,8 +37,8 @@ def fetch(em,password):
     #Create list of ids corresponding to an email
     all_ids = b" ".join(data).split()
     #print(all_ids)
-    host_id = "89a57bc6-3c38-435c-807d-904e2bac20c1"
-    for uid in all_ids[:10]:
+    id = 0
+    for uid in all_ids:
         status, msg_data = mail.fetch(uid,"(RFC822)")
         msg = email.message_from_bytes(msg_data[0][1])
         # msg is your email.message.Message from msg_data[0][1]
@@ -34,70 +53,57 @@ def fetch(em,password):
 
                 ctype   = part.get_content_type()
                 charset = part.get_content_charset() or "utf-8"
-                text    = part.get_payload(decode=True).decode(charset, errors="replace")
-
                 if ctype == "text/plain":
                     # direct concatenation
-                    plain_body += text + "\n\n"
+                    plain_body += part.get_payload(decode=False) + "\n"
                 elif ctype == "text/html":
-                    html_body += text + "\n\n"
+                    html_body += part.get_payload(decode=True).decode(charset, "replace") + "\n"
         else:
             # single‑part message
             ctype   = msg.get_content_type()
             charset = msg.get_content_charset() or "utf-8"
-            text    = msg.get_payload(decode=True).decode(charset, errors="replace")
             if ctype == "text/plain":
-                plain_body = text
+                plain_body = msg.get_payload(decode=False)
             elif ctype == "text/html":
-                html_body = text
-
-        with open("airbnb_message.html", "w", encoding="utf-8") as f:
-            f.write(html_body)
-        #print(html_body)
+                html_body = msg.get_payload(decode=True).decode(charset, "replace")
+        soup = BeautifulSoup(html_body, "html.parser")
+        ptexts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+        h2texts = [h2.get_text(" ", strip=True) for h2 in soup.find_all("h2")]
+        image_srcs = [img["src"] for img in soup.find_all("img", src=True)]
         #Retrieve message thread id
         m = re.search(
-            r'href="https://www\.airbnb\.com/hosting/thread/(\d+)\?',html_body
+            r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
+            plain_body
         )
-        if m:
-            thread_id = m.group(1)
-        m = re.search(
-            r'(?<=/im/pictures/user/)[0-9a-fA-F-]+(?=\.jpg)',html_body
-        )
-        if m:
-            messenger_id = m.group(0)
+        thread_id = m.group(1)
         #Find the message content
         m = re.search(
-            r"\[https://www\.airbnb\.com/help/article/209\?[^]]+\]\.\s*\n"
+            r"\[https://www\.airbnb\.com/help/article/209\?[^]]+\]"
+            r"\s*(?:=\r?\n)?\.?\s*(?:\r?\n)+"
             #Non-Greedy, match as little as you can while matching the pattern
             r"(.*?)"
-            r"(?=\nReply)",
+            r"(?=\s*(?:Reply|Review inquiry)\b)",
             plain_body,
             flags=re.DOTALL
         )
-        
-        if m:
-            message = m.group(1).strip()
-            parts = message.split()
-            name = parts[0]
-            message = " ".join(parts[1:])
-            if messenger_id == host_id:
-                message_data = {
-                    "role": "host",
-                    "text": message,
-                    "name": name,
-                    "time": "Recent"
-                }
-                threads[thread_id].append(message_data)
-            else:
-                message_data = {
-                    "role": "guest",
-                    "text": message,
-                    "name": name,
-                    "time": "Recent"
-                }
-                if thread_id not in thread_name:
-                    thread_name[thread_id] = name
-                threads[thread_id].append(message_data)
+        #print(plain_body)
+        #if m:
+        #    message = m.group(1)
+        #m = re.search(r"89a57bc6-3c38-435c-807d-904e2bac20c1",html_body)
+        if ptexts[1] == "Host" or ptexts[1] == "Guest" or ptexts[1] == "Booker":
+            message = ptexts[2]
+            host = ptexts[1] == "Host"
+            name = h2texts[0]
+            cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (id, thread_id, message, name, host))
+            id += 1
         else:
-            print("Couldn't find the message block.")
-    return (thread_name,threads)
+            message = ptexts[2]
+            host = image_srcs[2] == "https://a0.muscache.com/im/pictures/user/89a57bc6-3c38-435c-807d-904e2bac20c1.jpg?aki_policy=profile_medium" 
+            name = ptexts[1]
+            cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (id, thread_id, message, name, host))
+            id += 1
+EM = os.getenv("EMAIL")
+PASSWORD = os.getenv("PASSWORD")
+fetch(EM,PASSWORD)
+conn.commit()
+conn.close()

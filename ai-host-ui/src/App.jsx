@@ -69,7 +69,7 @@ function App() {
         setGeneratedResponse({
           text: data.response,
           time: 'Just now',
-          name: 'Host'
+          name: 'Tina'
         });
       } catch (err) {
         console.error('Error generating response:', err);

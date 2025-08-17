@@ -1,9 +1,10 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
+import sqlite3
 
+from collections import defaultdict
 from langchain_core.messages import trim_messages
-from email_reader import fetch
 from dotenv import load_dotenv
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
@@ -42,19 +43,48 @@ with open("CheckInInstructions.txt", "r", encoding="latin-1") as f:
     context = f.read()
 @app.route('/api/threads', methods=['GET'])
 def get_threads():
-    """Get all email threads with messages"""
+    """Get all email threads with messages from database"""
     try:
-        # Fetch email threads using your existing function
-        (thread_name,email_threads) = fetch(EM, PASSWORD)
-    
+        # Connect to database
+        conn = sqlite3.connect("airbnb.db")
+        cursor = conn.cursor()
+        
+        # Get all messages grouped by thread_id
+        cursor.execute("""
+            SELECT message_id, thread_id, content, name, host
+            FROM messages 
+            ORDER BY thread_id, message_id
+        """)
+        
+        # Group messages by thread_id
+        threads_data = defaultdict(list)
+        thread_names = {}
+        
+        for row in cursor.fetchall():
+            message_id, thread_id, content, name, is_host = row
+            # Initialize thread if not exists
+            # Store first guest name as thread name
+            if not is_host:
+                thread_names[thread_id] = name
+            
+            # Format message for API response
+            message_data = {
+                "role": "host" if is_host else "guest",
+                "text": content,
+                "name": name,
+                "time": "Recent"
+            }
+            
+            threads_data[thread_id].append(message_data)
+        conn.close()
         
         return jsonify({
-            "threads": thread_name,
-            "messages": email_threads
+            "threads": thread_names,
+            "messages": threads_data
         })
         
     except Exception as e:
-        print(f"Error fetching threads: {e}")
+        print(f"Error fetching threads from database: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/query', methods=['POST'])
@@ -62,7 +92,6 @@ def process_query():
     """Process a prompt for a specific thread"""
     try:
         data = request.json
-        thread_id = data.get('threadId')
         messages = data.get('messages', [])
         
         # Generate AI response using the query function
