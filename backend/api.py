@@ -39,8 +39,6 @@ def query(messages, context):
     print("Messages being sent to AI:", tMessages)
     chat = get_openrouter_chat()
     return chat.invoke(tMessages).content
-with open("CheckInInstructions.txt", "r", encoding="latin-1") as f:
-    context = f.read()
 @app.route('/api/threads', methods=['GET'])
 def get_threads():
     """Get all email threads with messages from database"""
