@@ -23,6 +23,8 @@ app = Flask(__name__)
 CORS(app)
 
 shutdown = False
+with open("backend/context.txt", "r", encoding="latin-1") as f:
+    context = f.read()
 def init_db():
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
@@ -150,8 +152,6 @@ def watch_inbox(interval_seconds=5):
         conn.commit()
         conn.close()
         time.sleep(interval_seconds)
-with open("backend/context.txt", "r", encoding="latin-1") as f:
-    context = f.read()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
