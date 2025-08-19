@@ -69,7 +69,6 @@ def watch_inbox(interval_seconds=5):
         mail.login(EM, PASSWORD)
         mail.select("inbox")
         #Data is a list of byte strings
-      
         status, data = mail.search(None,f'(UID {last_uid+1}:* FROM "express@airbnb.com")')
         if status == "OK":
             print(data)
@@ -77,7 +76,6 @@ def watch_inbox(interval_seconds=5):
         all_ids = b" ".join(data).split()
         #print(all_ids)
         for seq in all_ids:
-            print(last_uid)
             status, last_uid = mail.fetch(seq, '(UID)')
             last_uid = last_uid[0].decode().split()[2].rstrip(")")
             status, msg_data = mail.fetch(seq,"(RFC822)")
@@ -148,7 +146,6 @@ def watch_inbox(interval_seconds=5):
                 VALUES ('last_seen_uid', ?, ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, message_id = excluded.message_id
             """, (last_uid,last_message_id))
-        print("done")
         conn.commit()
         conn.close()
         time.sleep(interval_seconds)
@@ -209,7 +206,6 @@ def get_threads():
             
             threads_data[thread_id].append(message_data)
         conn.close()
-        
         return jsonify({
             "threads": thread_names,
             "messages": threads_data
