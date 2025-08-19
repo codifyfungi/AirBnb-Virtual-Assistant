@@ -7,6 +7,7 @@ import imaplib
 import email
 import re
 import signal
+import threading
 from bs4 import BeautifulSoup
 
 from collections import defaultdict
@@ -147,13 +148,10 @@ def watch_inbox(interval_seconds=5):
             """, (last_uid,last_message_id))
         print("done")
         conn.commit()
-        time.sleep(interval_seconds)
         conn.close()
-
+        time.sleep(interval_seconds)
 with open("backend/context.txt", "r", encoding="latin-1") as f:
     context = f.read()
-init_db()
-watch_inbox()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
@@ -236,6 +234,7 @@ def process_query():
     except Exception as e:
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    init_db()
+    threading.Thread(target=watch_inbox, daemon=True).start()
+    app.run(debug=True, use_reloader=False, port=5000)
