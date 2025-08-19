@@ -7,7 +7,6 @@ import sqlite3
 from dotenv import load_dotenv
 load_dotenv()
 import os
-import quopri
 from bs4 import BeautifulSoup
 
 conn = sqlite3.connect("airbnb.db")
