@@ -23,7 +23,7 @@ app = Flask(__name__)
 CORS(app)
 
 shutdown = False
-with open("backend/context.txt", "r", encoding="latin-1") as f:
+with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
 def init_db():
     conn = sqlite3.connect("airbnb.db")
