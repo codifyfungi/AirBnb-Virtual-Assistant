@@ -1,45 +1,61 @@
-import { useState, useEffect } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import ThreadBox from "./ThreadBox";
 
 // API base URL - change this if your Flask server runs on a different port
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+//const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = "http://127.0.0.1:5000";
 
 function App() {
-  const [threads, setThreads] = useState([]);
+  const [threads, setThreads] = useState({});
   const [messages, setMessages] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [generatedResponse, setGeneratedResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const lastMessageIdRef = useRef(0);
 
   // Fetch threads and messages from API
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/api/threads`);
+        const response = await fetch(
+          `${API_BASE_URL}/api/threads?last_message_id=${lastMessageIdRef.current}`
+        );
         if (!response.ok) {
           throw new Error('Failed to fetch data');
         }
         const data = await response.json();
-        setThreads(data.threads);
-        setMessages(data.messages);
-        // Select first thread if available
-        if (data.threads.length > 0) {
-          setSelectedId(data.threads[0].id);
+
+        if (lastMessageIdRef.current === 0) {
+          setThreads(data.threads);
+          setMessages(data.messages);
+          const firstId = Object.keys(data.threads)[0];
+          if (firstId) {
+            setSelectedId(firstId);
+          }
+          setLoading(false);
+        } else {
+          setThreads((prev) => ({ ...prev, ...data.threads }));
+          setMessages((prev) => {
+            const updated = { ...prev };
+            for (const [threadId, msgs] of Object.entries(data.messages)) {
+              updated[threadId] = [...(updated[threadId] || []), ...msgs];
+            }
+            return updated;
+          });
         }
+        lastMessageIdRef.current = data.last_message_id;
       } catch (err) {
         console.error('Error fetching data:', err);
         setError(err.message);
-      } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const currentMessages = selectedId ? (messages[selectedId] ?? []) : [];

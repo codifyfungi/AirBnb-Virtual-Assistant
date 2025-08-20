@@ -178,19 +178,28 @@ def get_threads():
         conn = sqlite3.connect("airbnb.db")
         cursor = conn.cursor()
         
-        # Get all messages grouped by thread_id
-        cursor.execute("""
+        # Get only messages newer than the provided last_message_id
+        last_message_id = request.args.get("last_message_id", default=0, type=int)
+        cursor.execute(
+            """
             SELECT message_id, thread_id, content, name, host
-            FROM messages 
+            FROM messages
+            WHERE message_id > ?
             ORDER BY thread_id, message_id
-        """)
+            """,
+            (last_message_id,),
+        )
         
         # Group messages by thread_id
         threads_data = defaultdict(list)
         thread_names = {}
         
-        for row in cursor.fetchall():
+        rows = cursor.fetchall()
+        newest_id = last_message_id
+        for row in rows:
             message_id, thread_id, content, name, is_host = row
+            if int(message_id) > newest_id:
+                newest_id = int(message_id)
             # Initialize thread if not exists
             # Store first guest name as thread name
             if not is_host:
@@ -208,7 +217,8 @@ def get_threads():
         conn.close()
         return jsonify({
             "threads": thread_names,
-            "messages": threads_data
+            "messages": threads_data,
+            "last_message_id": newest_id,
         })
         
     except Exception as e:
