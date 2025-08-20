@@ -14,14 +14,20 @@ class SimpleIngester:
         """Store text directly in vector database."""
         # Generate simple ID
         text_id = hashlib.md5(text.encode()).hexdigest()
-        
+
         # Generate embedding
         embedding = self.embedding_model.encode(text).tolist()
-        
-        # Store in database
+
+        # Prepare metadata, ensuring a title is always stored
+        meta = {"title": title}
+        if metadata:
+            meta.update(metadata)
+
+        # Store in database including metadata so we can retrieve context later
         self.collection.add(
             embeddings=[embedding],
             documents=[text],
+            metadatas=[meta],
             ids=[text_id]
         )
         return True
