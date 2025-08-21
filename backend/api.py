@@ -34,7 +34,7 @@ def init_db():
     # message id is email uid
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS messages (
-        message_id TEXT PRIMARY KEY,
+        message_id INTEGER PRIMARY KEY,
         thread_id TEXT NOT NULL,
         content TEXT,
         name TEXT,
@@ -45,7 +45,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS sync_state (
         key TEXT PRIMARY KEY,
         value TEXT,
-        message_id TEXT
+        message_id INTEGER
     )
     """)
     conn.commit()
@@ -196,10 +196,12 @@ def get_threads():
         
         rows = cursor.fetchall()
         newest_id = last_message_id
+        print(rows)
+        print(last_message_id)
         for row in rows:
             message_id, thread_id, content, name, is_host = row
-            if int(message_id) > newest_id:
-                newest_id = int(message_id)
+            if message_id > newest_id:
+                newest_id = message_id
             # Initialize thread if not exists
             # Store first guest name as thread name
             if not is_host:

@@ -3,8 +3,8 @@ import './App.css'
 import ThreadBox from "./ThreadBox";
 
 // API base URL - change this if your Flask server runs on a different port
-//const API_BASE_URL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = "http://127.0.0.1:5000";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+//const API_BASE_URL = "http://127.0.0.1:5000";
 
 function App() {
   const [threads, setThreads] = useState({});
@@ -26,7 +26,6 @@ function App() {
           throw new Error('Failed to fetch data');
         }
         const data = await response.json();
-
         if (lastMessageIdRef.current === 0) {
           setThreads(data.threads);
           setMessages(data.messages);
@@ -46,6 +45,7 @@ function App() {
           });
         }
         lastMessageIdRef.current = data.last_message_id;
+        console.log(data.last_message_id)
       } catch (err) {
         console.error('Error fetching data:', err);
         setError(err.message);
