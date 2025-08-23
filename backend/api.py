@@ -54,6 +54,7 @@ def get_last_seen_uid(cursor):
     cursor.execute("SELECT * FROM sync_state WHERE key='last_seen_uid'")
     row = cursor.fetchone()
     return (int(row[1]),int(row[2])) if row else (0,0)
+@app.route('/api/watch-inbox', methods=['GET'])
 def watch_inbox():
     init_db()
     EM = os.getenv("EMAIL")
