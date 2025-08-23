@@ -61,6 +61,7 @@ def get_last_seen_uid(cursor):
 def watch_inbox(interval_seconds=5):
     EM = os.getenv("EMAIL")
     PASSWORD = os.getenv("PASSWORD")
+    init_db()
     while not shutdown:    
         conn = sqlite3.connect("airbnb.db")
         cursor = conn.cursor()
@@ -160,7 +161,6 @@ def get_openrouter_chat() -> ChatOpenAI:
         temperature=0.7,
         max_tokens=512,
     )
-
 def query(messages, context):
     tMessages = [SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han. Be warm, concise, and solution-oriented. Never share internal notes. Follow HOUSE RULES and AIRBNB POLICIES below.\n\n{context}")]
     for m in messages:
@@ -244,6 +244,5 @@ def process_query():
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
-    init_db()
     threading.Thread(target=watch_inbox, daemon=True).start()
     app.run(debug=True, use_reloader=False, port=5000)
