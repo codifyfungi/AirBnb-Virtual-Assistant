@@ -61,12 +61,7 @@ def get_last_seen_uid(cursor):
 def watch_inbox_loop():
     EM = os.getenv("EMAIL")
     PASSWORD = os.getenv("PASSWORD")
-<<<<<<< HEAD
-    init_db()
-    while not shutdown:    
-=======
     while not shutdown:
->>>>>>> be6b14e701d4c6c305744e4dbe4e2a5992d4a491
         conn = sqlite3.connect("airbnb.db")
         cursor = conn.cursor()
         last_uid,last_message_id = get_last_seen_uid(cursor)
@@ -254,8 +249,4 @@ def process_query():
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
-<<<<<<< HEAD
-    threading.Thread(target=watch_inbox, daemon=True).start()
-=======
->>>>>>> be6b14e701d4c6c305744e4dbe4e2a5992d4a491
     app.run(debug=True, use_reloader=False, port=5000)
