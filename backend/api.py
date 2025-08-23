@@ -58,10 +58,10 @@ def get_last_seen_uid(cursor):
     cursor.execute("SELECT * FROM sync_state WHERE key='last_seen_uid'")
     row = cursor.fetchone()
     return (int(row[1]),int(row[2])) if row else (0,0)
-def watch_inbox(interval_seconds=5):
+def watch_inbox_loop():
     EM = os.getenv("EMAIL")
     PASSWORD = os.getenv("PASSWORD")
-    while not shutdown:    
+    while not shutdown:
         conn = sqlite3.connect("airbnb.db")
         cursor = conn.cursor()
         last_uid,last_message_id = get_last_seen_uid(cursor)
@@ -149,7 +149,13 @@ def watch_inbox(interval_seconds=5):
             """, (last_uid,last_message_id))
         conn.commit()
         conn.close()
-        time.sleep(interval_seconds)
+        time.sleep(5)
+
+
+@app.before_first_request
+def start_watch_inbox():
+    init_db()
+    threading.Thread(target=watch_inbox_loop, daemon=True).start()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
@@ -244,6 +250,4 @@ def process_query():
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
-    init_db()
-    threading.Thread(target=watch_inbox, daemon=True).start()
     app.run(debug=True, use_reloader=False, port=5000)
