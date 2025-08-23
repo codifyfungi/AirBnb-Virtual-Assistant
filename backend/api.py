@@ -152,7 +152,7 @@ def watch_inbox_loop():
         time.sleep(5)
 
 
-@app.before_first_request
+@app.before_serving
 def start_watch_inbox():
     init_db()
     threading.Thread(target=watch_inbox_loop, daemon=True).start()
