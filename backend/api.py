@@ -72,7 +72,8 @@ def watch_inbox():
         print(data)
     #Create list of ids corresponding to an email
     all_ids = b" ".join(data).split()
-    #print(all_ids)
+    print("IDS")
+    print(all_ids)
     for seq in all_ids:
         status, last_uid = mail.fetch(seq, '(UID)')
         last_uid = last_uid[0].decode().split()[2].rstrip(")")
