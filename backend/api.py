@@ -151,8 +151,9 @@ def watch_inbox_loop():
         conn.commit()
         conn.close()
         time.sleep(5)
-
-
+def start_watch_inbox():
+    threading.Thread(target=watch_inbox_loop, daemon=True).start()
+start_watch_inbox()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
