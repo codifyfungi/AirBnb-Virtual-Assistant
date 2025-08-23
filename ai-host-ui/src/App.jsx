@@ -19,6 +19,10 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const watchResp = await fetch(`${API_BASE_URL}/api/watch-inbox`);
+        if (!watchResp.ok) {
+          throw new Error('Failed to watch inbox');
+        }
         const response = await fetch(
           `${API_BASE_URL}/api/threads?last_message_id=${lastMessageIdRef.current}`
         );

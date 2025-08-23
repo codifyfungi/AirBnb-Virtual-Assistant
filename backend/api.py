@@ -50,10 +50,6 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-def handle_shutdown(_sig, _frame):
-    global shutdown
-    shutdown = True
-signal.signal(signal.SIGTERM, handle_shutdown)
 def get_last_seen_uid(cursor):
     cursor.execute("SELECT * FROM sync_state WHERE key='last_seen_uid'")
     row = cursor.fetchone()
