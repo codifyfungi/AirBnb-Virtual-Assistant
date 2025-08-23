@@ -20,9 +20,8 @@ from langchain.schema import SystemMessage, HumanMessage, AIMessage
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=["https://bnbot.netlify.app"], supports_credentials=True)
-
-shutdown = False
+CORS(app, origins=["https://bnbot.netlify.app","http://localhost:5173"], supports_credentials=True)
+lock = threading.Lock()
 with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
 def init_db():
@@ -34,121 +33,114 @@ def init_db():
     # message id is email uid
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS messages (
-        message_id INTEGER PRIMARY KEY,
+        uid INTEGER PRIMARY KEY,
         thread_id TEXT NOT NULL,
         content TEXT,
         name TEXT,
         host INTEGER
     )
     """)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS sync_state (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        message_id INTEGER
-    )
-    """)
     conn.commit()
     conn.close()
 def get_last_seen_uid(cursor):
-    cursor.execute("SELECT * FROM sync_state WHERE key='last_seen_uid'")
+    cursor.execute("SELECT MAX(uid) FROM messages")
     row = cursor.fetchone()
-    return (int(row[1]),int(row[2])) if row else (0,0)
-@app.route('/api/watch-inbox', methods=['GET'])
+    return row[0] if row[0] is not None else 0
+@app.route('/api/watch-inbox', methods=['POST'])
 def watch_inbox():
-    init_db()
-    EM = os.getenv("EMAIL")
-    PASSWORD = os.getenv("PASSWORD")
-    conn = sqlite3.connect("airbnb.db")
-    cursor = conn.cursor()
-    last_uid,last_message_id = get_last_seen_uid(cursor)
-    mail = imaplib.IMAP4_SSL("imap.gmail.com")
-    mail.login(EM, PASSWORD)
-    mail.select("inbox")
-    #Data is a list of byte strings
-    status, data = mail.search(None,f'(UID {last_uid+1}:* FROM "express@airbnb.com")')
-    if status == "OK":
-        print("watch_inbox running")
-        print(data)
-    #Create list of ids corresponding to an email
-    all_ids = b" ".join(data).split()
-    print("IDS")
-    print(last_uid+1)
-    for seq in all_ids:
-        status, last_uid = mail.fetch(seq, '(UID)')
-        last_uid = last_uid[0].decode().split()[2].rstrip(")")
-        print(last_uid)
-        status, msg_data = mail.fetch(seq,"(RFC822)")
-        msg = email.message_from_bytes(msg_data[0][1])
-        # msg is your email.message.Message from msg_data[0][1]
-        plain_body = ""
-        html_body  = ""
+    if not lock.acquire(blocking=False):
+        print("Already in USE")
+        return ("", 204)
+    try:
+        init_db()
+        EM = os.getenv("EMAIL")
+        PASSWORD = os.getenv("PASSWORD")
+        conn = sqlite3.connect("airbnb.db")
+        cursor = conn.cursor()
+        last_uid = get_last_seen_uid(cursor)
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(EM, PASSWORD)
+        mail.select("inbox")
+        #Data is a list of byte strings
+        status, data = mail.uid("search", None, f'UID {last_uid+1}:* FROM "express@airbnb.com"')
+        if status == "OK":
+            print("watch_inbox running")
+            print(data)
+        #Create list of ids corresponding to an email
+        all_ids = b" ".join(data).split()
+        print("IDS")
+        print(last_uid+1)
+        for uid in all_ids:
+            status, msg_data = mail.uid("FETCH",uid,"(RFC822)")
+            print(uid)
+            uid = int(uid.decode())
+            print(uid)
+            msg = email.message_from_bytes(msg_data[0][1])
+            # msg is your email.message.Message from msg_data[0][1]
+            print(msg["From"])
+            plain_body = ""
+            html_body  = ""
 
-        if msg.is_multipart():
-            for part in msg.walk():
-                # skip containers and attachments
-                if part.get_content_maintype() == "multipart" or part.get("Content-Disposition"):
-                    continue
+            if msg.is_multipart():
+                for part in msg.walk():
+                    # skip containers and attachments
+                    if part.get_content_maintype() == "multipart" or part.get("Content-Disposition"):
+                        continue
 
-                ctype   = part.get_content_type()
-                charset = part.get_content_charset() or "utf-8"
+                    ctype   = part.get_content_type()
+                    charset = part.get_content_charset() or "utf-8"
+                    if ctype == "text/plain":
+                        # direct concatenation
+                        plain_body += part.get_payload(decode=False) + "\n"
+                    elif ctype == "text/html":
+                        html_body += part.get_payload(decode=True).decode(charset, "replace") + "\n"
+            else:
+                # single‑part message
+                ctype   = msg.get_content_type()
+                charset = msg.get_content_charset() or "utf-8"
                 if ctype == "text/plain":
-                    # direct concatenation
-                    plain_body += part.get_payload(decode=False) + "\n"
+                    plain_body = msg.get_payload(decode=False)
                 elif ctype == "text/html":
-                    html_body += part.get_payload(decode=True).decode(charset, "replace") + "\n"
-        else:
-            # single‑part message
-            ctype   = msg.get_content_type()
-            charset = msg.get_content_charset() or "utf-8"
-            if ctype == "text/plain":
-                plain_body = msg.get_payload(decode=False)
-            elif ctype == "text/html":
-                html_body = msg.get_payload(decode=True).decode(charset, "replace")
-        soup = BeautifulSoup(html_body, "html.parser")
-        ptexts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
-        h2texts = [h2.get_text(" ", strip=True) for h2 in soup.find_all("h2")]
-        image_srcs = [img["src"] for img in soup.find_all("img", src=True)]
-        #Retrieve message thread id
-        m = re.search(
-            r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
-            plain_body
-        )
-        thread_id = m.group(1)
-        #Find the message content
-        m = re.search(
-            r"\[https://www\.airbnb\.com/help/article/209\?[^]]+\]"
-            r"\s*(?:=\r?\n)?\.?\s*(?:\r?\n)+"
-            #Non-Greedy, match as little as you can while matching the pattern
-            r"(.*?)"
-            r"(?=\s*(?:Reply|Review inquiry)\b)",
-            plain_body,
-            flags=re.DOTALL
-        )
-        #print(plain_body)
-        #if m:
-        #    message = m.group(1)
-        #m = re.search(r"89a57bc6-3c38-435c-807d-904e2bac20c1",html_body)
-        if ptexts[1] == "Host" or ptexts[1] == "Guest" or ptexts[1] == "Booker":
-            message = ptexts[2]
-            host = ptexts[1] == "Host"
-            name = h2texts[0]
-            cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (last_message_id, thread_id, message, name, host))
-            last_message_id += 1
-        else:
-            message = ptexts[2]
-            host = image_srcs[2] == "https://a0.muscache.com/im/pictures/user/89a57bc6-3c38-435c-807d-904e2bac20c1.jpg?aki_policy=profile_medium" 
-            name = ptexts[1]
-            cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (last_message_id, thread_id, message, name, host))
-            last_message_id += 1 
-        cursor.execute("""
-            INSERT INTO sync_state (key, value, message_id)
-            VALUES ('last_seen_uid', ?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value, message_id = excluded.message_id
-        """, (last_uid,last_message_id))
-    conn.commit()
-    conn.close()
-    return ("", 204)
+                    html_body = msg.get_payload(decode=True).decode(charset, "replace")
+            soup = BeautifulSoup(html_body, "html.parser")
+            ptexts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+            h2texts = [h2.get_text(" ", strip=True) for h2 in soup.find_all("h2")]
+            image_srcs = [img["src"] for img in soup.find_all("img", src=True)]
+            #Retrieve message thread id
+            m = re.search(
+                r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
+                plain_body
+            )
+            thread_id = m.group(1)
+            #Find the message content
+            m = re.search(
+                r"\[https://www\.airbnb\.com/help/article/209\?[^]]+\]"
+                r"\s*(?:=\r?\n)?\.?\s*(?:\r?\n)+"
+                #Non-Greedy, match as little as you can while matching the pattern
+                r"(.*?)"
+                r"(?=\s*(?:Reply|Review inquiry)\b)",
+                plain_body,
+                flags=re.DOTALL
+            )
+            #print(plain_body)
+            #if m:
+            #    message = m.group(1)
+            #m = re.search(r"89a57bc6-3c38-435c-807d-904e2bac20c1",html_body)
+            if ptexts[1] == "Host" or ptexts[1] == "Guest" or ptexts[1] == "Booker":
+                message = ptexts[2]
+                host = ptexts[1] == "Host"
+                name = h2texts[0]
+                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, thread_id, message, name, host))
+            else:
+                message = ptexts[2]
+                host = image_srcs[2] == "https://a0.muscache.com/im/pictures/user/89a57bc6-3c38-435c-807d-904e2bac20c1.jpg?aki_policy=profile_medium" 
+                name = ptexts[1]
+                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, thread_id, message, name, host))
+        conn.commit()
+        conn.close()
+        return ("", 204)
+    finally:
+        lock.release()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
@@ -178,15 +170,15 @@ def get_threads():
         cursor = conn.cursor()
         
         # Get only messages newer than the provided last_message_id
-        last_message_id = request.args.get("last_message_id", default=0, type=int)
+        last_uid = request.args.get("last_message_id", default=0, type=int)
         cursor.execute(
             """
-            SELECT message_id, thread_id, content, name, host
+            SELECT uid, thread_id, content, name, host
             FROM messages
-            WHERE message_id > ?
-            ORDER BY thread_id, message_id
+            WHERE uid > ?
+            ORDER BY uid
             """,
-            (last_message_id,),
+            (last_uid,),
         )
         
         # Group messages by thread_id
@@ -194,13 +186,13 @@ def get_threads():
         thread_names = {}
         
         rows = cursor.fetchall()
-        newest_id = last_message_id
+        newest_id = last_uid
         print("Get")
-        print(last_message_id)
+        print(last_uid)
         for row in rows:
-            message_id, thread_id, content, name, is_host = row
-            if message_id > newest_id:
-                newest_id = message_id
+            uid, thread_id, content, name, is_host = row
+            if uid > newest_id:
+                newest_id = uid
             # Initialize thread if not exists
             # Store first guest name as thread name
             if not is_host:

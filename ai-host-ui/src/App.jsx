@@ -19,7 +19,10 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const watchResp = await fetch(`${API_BASE_URL}/api/watch-inbox`);
+        const watchResp = await fetch(`${API_BASE_URL}/api/watch-inbox`, {
+          method: "POST",               // match your Flask route
+          // no headers/body → avoids CORS preflight during dev
+        });
         if (!watchResp.ok) {
           throw new Error('Failed to watch inbox');
         }
