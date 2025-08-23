@@ -73,10 +73,11 @@ def watch_inbox():
     #Create list of ids corresponding to an email
     all_ids = b" ".join(data).split()
     print("IDS")
-    print(all_ids)
+    print(last_uid+1)
     for seq in all_ids:
         status, last_uid = mail.fetch(seq, '(UID)')
         last_uid = last_uid[0].decode().split()[2].rstrip(")")
+        print(last_uid)
         status, msg_data = mail.fetch(seq,"(RFC822)")
         msg = email.message_from_bytes(msg_data[0][1])
         # msg is your email.message.Message from msg_data[0][1]
