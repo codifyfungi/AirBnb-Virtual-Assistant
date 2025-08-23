@@ -20,7 +20,7 @@ from langchain.schema import SystemMessage, HumanMessage, AIMessage
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://bnbot.netlify.app"], supports_credentials=True)
 
 shutdown = False
 with open("context.txt", "r", encoding="latin-1") as f:
