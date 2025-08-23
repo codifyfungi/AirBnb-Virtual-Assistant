@@ -146,6 +146,7 @@ def watch_inbox():
         """, (last_uid,last_message_id))
     conn.commit()
     conn.close()
+    return ("", 204)
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
