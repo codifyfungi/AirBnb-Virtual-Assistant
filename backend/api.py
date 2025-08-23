@@ -71,6 +71,7 @@ def watch_inbox(interval_seconds=5):
         #Data is a list of byte strings
         status, data = mail.search(None,f'(UID {last_uid+1}:* FROM "express@airbnb.com")')
         if status == "OK":
+            print("watch_inbox running")
             print(data)
         #Create list of ids corresponding to an email
         all_ids = b" ".join(data).split()
@@ -196,7 +197,7 @@ def get_threads():
         
         rows = cursor.fetchall()
         newest_id = last_message_id
-        print(rows)
+        print("Get")
         print(last_message_id)
         for row in rows:
             message_id, thread_id, content, name, is_host = row
