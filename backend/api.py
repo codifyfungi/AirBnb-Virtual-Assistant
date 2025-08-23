@@ -59,6 +59,7 @@ def get_last_seen_uid(cursor):
     row = cursor.fetchone()
     return (int(row[1]),int(row[2])) if row else (0,0)
 def watch_inbox_loop():
+    init_db()
     EM = os.getenv("EMAIL")
     PASSWORD = os.getenv("PASSWORD")
     while not shutdown:
@@ -152,10 +153,6 @@ def watch_inbox_loop():
         time.sleep(5)
 
 
-@app.before_serving
-def start_watch_inbox():
-    init_db()
-    threading.Thread(target=watch_inbox_loop, daemon=True).start()
 def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
@@ -249,4 +246,5 @@ def process_query():
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
+    threading.Thread(target=watch_inbox_loop, daemon=True).start()
     app.run(debug=True, use_reloader=False, port=5000)
