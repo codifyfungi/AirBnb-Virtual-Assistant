@@ -1,36 +1,48 @@
+import hashlib
+import sys
+
 import chromadb
 from sentence_transformers import SentenceTransformer
-import hashlib
 
 
-class SimpleIngester:
-    def __init__(self, db_path="./vector_db"):
-        """Initialize with ChromaDB and embedding model."""
-        self.client = chromadb.PersistentClient(path=db_path)
-        self.collection = self.client.get_or_create_collection("instructions")
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-    
-    def store_text(self, text, title="", metadata=None):
-        """Store text directly in vector database."""
-        # Generate simple ID
-        text_id = hashlib.md5(text.encode()).hexdigest()
-        
-        # Generate embedding
-        embedding = self.embedding_model.encode(text).tolist()
-        
-        # Store in database
-        self.collection.add(
-            embeddings=[embedding],
-            documents=[text],
-            ids=[text_id]
-        )
-        return True
-    
-    def search(self, query, limit=5):
-        """Search stored text."""
-        query_embedding = self.embedding_model.encode(query).tolist()
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=limit
-        )
-        return results
+def chunk_text(text: str, chunk_words: int = 300, overlap_words: int = 50):
+    """Word-based chunks with small overlap; dead-simple and good enough."""
+    words = text.split()
+    if not words:
+        return []
+    step = max(1, chunk_words - overlap_words)
+    return [" ".join(words[i:i + chunk_words]) for i in range(0, len(words), step)]
+
+def main(path: str = "context.txt", db_path: str = "./vector_db", collection_name: str = "instructions"):
+
+    client = chromadb.PersistentClient(path=db_path)
+    collection = client.get_or_create_collection(collection_name)
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    chunks = chunk_text(text)
+
+    for chunk in chunks:
+        emb = model.encode(chunk).tolist()
+        cid = hashlib.md5(chunk.encode("utf-8")).hexdigest()
+        collection.add(embeddings=[emb], documents=[chunk], ids=[cid])
+
+    print(f"Ingested {len(chunks)} chunks from {path} into collection '{collection_name}' at {db_path}.")
+
+    # tiny search smoke test
+    q = "test"
+    q_emb = model.encode(q).tolist()
+    res = collection.query(
+        query_embeddings=[q_emb],
+        n_results=3,
+        include=["documents", "distances"]  # ✅ valid include keys
+    )
+    print("IDs:", res.get("ids", []))
+    print("Distances:", res.get("distances", []))
+    print("Docs preview:", [d[:120] + "…" if len(d) > 120 else d for d in res.get("documents", [[]])[0]])
+
+
+if __name__ == "__main__":
+    # Usage: python simplest_ingest.py [optional_path_to_text_file]
+    main(sys.argv[1] if len(sys.argv) > 1 else "context.txt")
