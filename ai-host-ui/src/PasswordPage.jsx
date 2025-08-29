@@ -38,10 +38,6 @@ export default function PasswordPage({ onSuccess }) {
             Unlock
           </button>
         </div>
-
-        <div style={{ marginTop: 14, fontSize: 12, color: "#9ca3af" }}>
-          Hint: Configure the password using the Vite env variable <code style={{ background: "#f9fafb", padding: '2px 6px', borderRadius: 4 }}>VITE_APP_PASSWORD</code> at build time.
-        </div>
       </form>
     </div>
   );
