@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import ThreadBox from "./ThreadBox";
+import PasswordPage from "./PasswordPage";
 
 // API base URL - change this if your Flask server runs on a different port
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 //const API_BASE_URL = "http://127.0.0.1:5000";
 
 function App() {
+  const [unlocked, setUnlocked] = useState(() => {
+    try {
+      return localStorage.getItem("ai_ui_auth") === "true";
+    } catch (_) {
+      return false;
+    }
+  });
   const [threads, setThreads] = useState({});
   const [messages, setMessages] = useState({});
   const [selectedId, setSelectedId] = useState(null);
@@ -15,13 +23,14 @@ function App() {
   const [error, setError] = useState(null);
   const lastMessageIdRef = useRef(0);
 
-  // Fetch threads and messages from API
+  // Fetch threads and messages from API (only once unlocked)
   useEffect(() => {
+    if (!unlocked) return;
+
     const fetchData = async () => {
       try {
         const watchResp = await fetch(`${API_BASE_URL}/api/watch-inbox`, {
-          method: "POST",               // match your Flask route
-          // no headers/body → avoids CORS preflight during dev
+          method: "POST",
         });
         if (!watchResp.ok) {
           throw new Error('Failed to watch inbox');
@@ -63,7 +72,7 @@ function App() {
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [unlocked]);
 
   const currentMessages = selectedId ? (messages[selectedId] ?? []) : [];
 
@@ -103,18 +112,30 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
-        <div>Loading threads...</div>
-      </div>
+      unlocked ? (
+        <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
+          <div>Loading threads...</div>
+        </div>
+      ) : (
+        <PasswordPage onSuccess={() => setUnlocked(true)} />
+      )
     );
   }
 
   if (error) {
     return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "red" }}>Error: {error}</div>
-      </div>
+      unlocked ? (
+        <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ color: "red" }}>Error: {error}</div>
+        </div>
+      ) : (
+        <PasswordPage onSuccess={() => setUnlocked(true)} />
+      )
     );
+  }
+
+  if (!unlocked) {
+    return <PasswordPage onSuccess={() => setUnlocked(true)} />;
   }
 
   return (
