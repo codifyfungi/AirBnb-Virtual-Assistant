@@ -181,7 +181,6 @@ def get_threads():
             """,
             (last_uid,),
         )
-        rows = cursor.fetchall()  # To maintain chronological order for display
         
         # Group messages by thread_id
         threads_data = defaultdict(list)
