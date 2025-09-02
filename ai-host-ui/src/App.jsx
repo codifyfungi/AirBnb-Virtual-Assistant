@@ -46,7 +46,9 @@ function App() {
           setMessages((prev) => {
             const updated = { ...prev };
             for (const [threadId, msgs] of Object.entries(data.messages)) {
-              updated[threadId] = [...(updated[threadId] || []), ...msgs];
+              const combined = [...(updated[threadId] || []), ...msgs];
+              // trim to last 100 messages
+              updated[threadId] = combined.length > 100 ? combined.slice(-100) : combined;
             }
             return updated;
           });
