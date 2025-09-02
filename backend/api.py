@@ -169,35 +169,23 @@ def get_threads():
         conn = sqlite3.connect("airbnb.db")
         cursor = conn.cursor()
         
-        # Get only messages newer than the provided last_message_id
-        last_uid = request.args.get("last_message_id", default=0, type=int)
+        # Fetch the 100 most recent messages, then reverse for chronological order
         cursor.execute(
             """
             SELECT uid, thread_id, content, name, host
             FROM messages
-            WHERE uid > ?
-            ORDER BY uid
-            """,
-            (last_uid,),
+            ORDER BY uid DESC
+            LIMIT 100
+            """
         )
-        
-        # Group messages by thread_id
+        rows = cursor.fetchall()
+        rows.reverse()
         threads_data = defaultdict(list)
         thread_names = {}
-        
-        rows = cursor.fetchall()
-        newest_id = last_uid
-        print("Get")
-        print(last_uid)
-        for row in rows:
-            uid, thread_id, content, name, is_host = row
-            if uid > newest_id:
-                newest_id = uid
-            # Initialize thread if not exists
-            # Store first guest name as thread name
-            if not is_host:
+        for uid, thread_id, content, name, is_host in rows:
+            # Store the first guest name per thread
+            if not is_host and thread_id not in thread_names:
                 thread_names[thread_id] = name
-            
             # Format message for API response
             message_data = {
                 "role": "host" if is_host else "guest",
@@ -205,13 +193,11 @@ def get_threads():
                 "name": name,
                 "time": "Recent"
             }
-            
             threads_data[thread_id].append(message_data)
         conn.close()
         return jsonify({
             "threads": thread_names,
             "messages": threads_data,
-            "last_message_id": newest_id,
         })
         
     except Exception as e:

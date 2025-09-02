@@ -19,41 +19,15 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const watchResp = await fetch(`${API_BASE_URL}/api/watch-inbox`, {
-          method: "POST",               // match your Flask route
-          // no headers/body → avoids CORS preflight during dev
-        });
-        if (!watchResp.ok) {
-          throw new Error('Failed to watch inbox');
-        }
+        await fetch(`${API_BASE_URL}/api/watch-inbox`, { method: "POST" });
         const response = await fetch(
-          `${API_BASE_URL}/api/threads?last_message_id=${lastMessageIdRef.current}`
+          `${API_BASE_URL}/api/threads`
         );
-        if (!response.ok) {
-          throw new Error('Failed to fetch data');
-        }
         const data = await response.json();
-        if (lastMessageIdRef.current === 0) {
-          setThreads(data.threads);
-          setMessages(data.messages);
-          const firstId = Object.keys(data.threads)[0];
-          if (firstId) {
-            setSelectedId(firstId);
-          }
-          setLoading(false);
-        } else {
-          setThreads((prev) => ({ ...prev, ...data.threads }));
-          setMessages((prev) => {
-            const updated = { ...prev };
-            for (const [threadId, msgs] of Object.entries(data.messages)) {
-              const combined = [...(updated[threadId] || []), ...msgs];
-              // trim to last 100 messages
-              updated[threadId] = combined.length > 100 ? combined.slice(-100) : combined;
-            }
-            return updated;
-          });
-        }
-        lastMessageIdRef.current = data.last_message_id;
+        // Replace threads and messages each cycle, showing only the top 100 per backend slice
+        setThreads(data.threads);
+        setMessages(data.messages);
+        // On first load, pick the first thread and clear loading
         console.log(data.last_message_id)
       } catch (err) {
         console.error('Error fetching data:', err);
