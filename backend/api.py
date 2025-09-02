@@ -177,7 +177,6 @@ def get_threads():
             FROM messages
             WHERE uid > ?
             ORDER BY uid
-            LIMIT 100
             """,
             (last_uid,),
         )
