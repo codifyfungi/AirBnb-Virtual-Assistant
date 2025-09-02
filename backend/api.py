@@ -177,9 +177,11 @@ def get_threads():
             FROM messages
             WHERE uid > ?
             ORDER BY uid
+            LIMIT 100
             """,
             (last_uid,),
         )
+        rows = cursor.fetchall()  # To maintain chronological order for display
         
         # Group messages by thread_id
         threads_data = defaultdict(list)
