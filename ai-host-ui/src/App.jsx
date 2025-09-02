@@ -13,8 +13,6 @@ function App() {
   const [generatedResponse, setGeneratedResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const lastMessageIdRef = useRef(0);
-
   // Fetch threads and messages from API
   useEffect(() => {
     const fetchData = async () => {
@@ -27,8 +25,12 @@ function App() {
         // Replace threads and messages each cycle, showing only the top 100 per backend slice
         setThreads(data.threads);
         setMessages(data.messages);
-        // On first load, pick the first thread and clear loading
-        console.log(data.last_message_id)
+        // On first load, select first thread and stop showing loading
+        if (loading) {
+          const firstId = Object.keys(data.threads)[0];
+          if (firstId) setSelectedId(firstId);
+          setLoading(false);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
         setError(err.message);
