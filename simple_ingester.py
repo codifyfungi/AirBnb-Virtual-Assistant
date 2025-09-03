@@ -1,6 +1,8 @@
 import hashlib
 import sys
 
+import re
+
 import chromadb
 from sentence_transformers import SentenceTransformer
 
@@ -21,8 +23,11 @@ def main(path: str = "context.txt", db_path: str = "./vector_db", collection_nam
 
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
-    chunks = chunk_text(text)
-
+    # Split text into individual rules by numbering (e.g., '1.', '2.', ...)
+    parts = re.split(r'(?m)^\s*\d+\.\s*', text)
+    # Ignore any empty leading text and strip whitespace
+    chunks = [p.strip() for p in parts if p.strip()]
+    print(chunks)
     for chunk in chunks:
         emb = model.encode(chunk).tolist()
         cid = hashlib.md5(chunk.encode("utf-8")).hexdigest()

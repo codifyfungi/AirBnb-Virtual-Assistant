@@ -11,6 +11,8 @@ import threading
 from bs4 import BeautifulSoup
 
 from collections import defaultdict
+import chromadb
+from sentence_transformers import SentenceTransformer
 from langchain_core.messages import trim_messages
 from dotenv import load_dotenv
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
@@ -24,6 +26,10 @@ CORS(app, origins=["https://bnbot.netlify.app","http://localhost:5173"], support
 lock = threading.Lock()
 with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
+# Set up vector DB for rule retrieval
+vect_client = chromadb.PersistentClient(path="vector_db")
+vect_collection = vect_client.get_or_create_collection("instructions")
+vect_model = SentenceTransformer("all-MiniLM-L6-v2")
 def init_db():
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
@@ -151,13 +157,27 @@ def get_openrouter_chat() -> ChatOpenAI:
         temperature=0.7,
         max_tokens=512,
     )
-def query(messages, context):
-    tMessages = [SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han. Be warm, concise, and solution-oriented. Never share internal notes. Follow HOUSE RULES and AIRBNB POLICIES below.\n\n{context}")]
+def query(messages):
+    # Build dynamic context: static rules + top-5 vector-db snippets
+    if messages:
+        # Combine entire thread text for vector search
+        thread_text = "\n".join([m.get('text', '') for m in messages])
+        emb = vect_model.encode(thread_text).tolist()
+        results = vect_collection.query(
+            query_embeddings=[emb],
+            n_results=5,
+            include=["documents"]
+        )
+        docs = results.get("documents", [[]])[0]
+        dynamic_ctx = context + "\n\n" + "\n\n".join(docs)
+    else:
+        dynamic_ctx = context
+    # System prompt with full context
+    tMessages = [SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han. Be warm, concise, and solution-oriented. Never share internal notes. Follow HOUSE RULES and AIRBNB POLICIES below.\n\n{dynamic_ctx}")]
+    # Append chat history
     for m in messages:
-        if m.get('role') == "host":
-            tMessages.append(AIMessage(content=f"{m.get('name')} {m.get('text', '')}"))
-        else:
-            tMessages.append(HumanMessage(content=f"{m.get('name')} {m.get('text', '')}"))
+        role_cls = AIMessage if m.get('role') == 'host' else HumanMessage
+        tMessages.append(role_cls(content=f"{m.get('name')} {m.get('text', '')}"))
     print("Messages being sent to AI:", tMessages)
     chat = get_openrouter_chat()
     return chat.invoke(tMessages).content
@@ -210,9 +230,18 @@ def process_query():
     try:
         data = request.json
         messages = data.get('messages', [])
-        
-        # Generate AI response using the query function
-        response = query(messages, context)
+        # Retrieve vector-db rules for context
+        last_text = messages[-1].get('text', '') if messages else ''
+        emb = vect_model.encode(last_text).tolist()
+        results = vect_collection.query(
+            query_embeddings=[emb],
+            n_results=5,
+            include=["documents"]
+        )
+        # Combine static context with retrieved snippets
+        docs = results.get("documents", [[]])[0]
+        ctx = context + "\n\n" + "\n\n".join(docs)
+        response = query(messages, ctx)
         
         return jsonify({"response": response})
         
