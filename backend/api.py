@@ -163,28 +163,24 @@ def get_openrouter_chat() -> ChatOpenAI:
         max_tokens=512,
     )
 def query(messages):
-    # Build dynamic context: static rules + top-5 vector-db snippets
-    if messages:
-        # Combine full thread text for vector retrieval
-        thread_text = "\n".join(m.get('text', '') for m in messages)
-        results = vect_collection.query(
-            query_texts=[thread_text],
-            n_results=5,
-            include=["documents"]
-        )
-        docs = results.get("documents", [[]])[0]
-        dynamic_ctx = context + "\n\n" + "\n\n".join(docs)
-    else:
-        dynamic_ctx = context
-    # System prompt with full context
-    tMessages = [SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han. Be warm, concise, and solution-oriented. Never share internal notes. Follow HOUSE RULES and AIRBNB POLICIES below.\n\n{dynamic_ctx}")]
-    # Append chat history
-    for m in messages:
-        role_cls = AIMessage if m.get('role') == 'host' else HumanMessage
-        tMessages.append(role_cls(content=f"{m.get('name')} {m.get('text', '')}"))
-    print("Messages being sent to AI:", tMessages)
-    chat = get_openrouter_chat()
-    return chat.invoke(tMessages).content
+    # build thread text and retrieve top-5 rules
+    thread_text = "\n".join(m['text'] for m in messages) if messages else ""
+    docs = vect_collection.query(
+        query_texts=[thread_text], n_results=5, include=["documents"]
+    ).get("documents", [[]])[0] if messages else []
+    # combine static context and retrieved rules
+    dynamic_ctx = context + "\n\n" + "\n\n".join(docs) if docs else context
+    # assemble messages: system prompt + history
+    tMessages = [
+        SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han."
+                        f" Be warm, concise, and solution-oriented. Never share internal notes."
+                        f" Follow HOUSE RULES and AIRBNB POLICIES below.\n\n{dynamic_ctx}")
+    ] + [
+        (AIMessage if m['role']=='host' else HumanMessage)(content=f"{m['name']} {m['text']}")
+        for m in messages
+    ]
+    # invoke chat
+    return get_openrouter_chat().invoke(tMessages).content
 @app.route('/api/threads', methods=['GET'])
 def get_threads():
     """Get all email threads with messages from database"""
