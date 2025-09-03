@@ -230,21 +230,9 @@ def process_query():
     try:
         data = request.json
         messages = data.get('messages', [])
-        # Retrieve vector-db rules for context
-        last_text = messages[-1].get('text', '') if messages else ''
-        emb = vect_model.encode(last_text).tolist()
-        results = vect_collection.query(
-            query_embeddings=[emb],
-            n_results=5,
-            include=["documents"]
-        )
-        # Combine static context with retrieved snippets
-        docs = results.get("documents", [[]])[0]
-        ctx = context + "\n\n" + "\n\n".join(docs)
-        response = query(messages, ctx)
-        
+        # Generate AI response using enriched query helper
+        response = query(messages)
         return jsonify({"response": response})
-        
     except Exception as e:
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
