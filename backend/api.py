@@ -2,11 +2,9 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
 import sqlite3
-import time
 import imaplib
 import email
 import re
-import signal
 import threading
 from bs4 import BeautifulSoup
 
