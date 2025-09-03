@@ -20,7 +20,7 @@ from langchain.schema import SystemMessage, HumanMessage, AIMessage
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=["https://bnbot.netlify.app","http://localhost:5173"], supports_credentials=True)
+CORS(app, resources={r"/api/*": {"origins": ["https://bnbot.netlify.app", "http://localhost:5173"]}})
 lock = threading.Lock()
 with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
