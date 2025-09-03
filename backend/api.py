@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 
 from collections import defaultdict
 import chromadb
-from sentence_transformers import SentenceTransformer
+from chromadb.utils.embedding_functions import HuggingFaceEmbeddingFunction
 from langchain_core.messages import trim_messages
 from dotenv import load_dotenv
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
@@ -24,10 +24,17 @@ CORS(app, origins=["https://bnbot.netlify.app","http://localhost:5173"], support
 lock = threading.Lock()
 with open("context.txt", "r", encoding="latin-1") as f:
     context = f.read()
-# Set up vector DB for rule retrieval
+"""
+Set up vector DB for rule retrieval using a free HuggingFace model.
+"""
 vect_client = chromadb.PersistentClient(path="vector_db")
-vect_collection = vect_client.get_or_create_collection("instructions")
-vect_model = SentenceTransformer("all-MiniLM-L6-v2")
+embed_fn = HuggingFaceEmbeddingFunction(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
+vect_collection = vect_client.get_or_create_collection(
+    "instructions",
+    embedding_function=embed_fn
+)
 def init_db():
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
@@ -158,11 +165,10 @@ def get_openrouter_chat() -> ChatOpenAI:
 def query(messages):
     # Build dynamic context: static rules + top-5 vector-db snippets
     if messages:
-        # Combine entire thread text for vector search
-        thread_text = "\n".join([m.get('text', '') for m in messages])
-        emb = vect_model.encode(thread_text).tolist()
+        # Combine full thread text for vector retrieval
+        thread_text = "\n".join(m.get('text', '') for m in messages)
         results = vect_collection.query(
-            query_embeddings=[emb],
+            query_texts=[thread_text],
             n_results=5,
             include=["documents"]
         )
