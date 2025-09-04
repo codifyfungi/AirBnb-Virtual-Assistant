@@ -22,8 +22,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["https://bnbot.netlify.app", "http://localhost:5173"]}})
 lock = threading.Lock()
-with open("context.txt", "r", encoding="latin-1") as f:
-    context = f.read()
 """
 Set up vector DB for rule retrieval using a free HuggingFace model.
 """
@@ -169,7 +167,7 @@ def query(messages):
         query_texts=[thread_text], n_results=5, include=["documents"]
     ).get("documents", [[]])[0] if messages else []
     # combine static context and retrieved rules
-    dynamic_ctx = context + "\n\n" + "\n\n".join(docs) if docs else context
+    dynamic_ctx = "\n\n".join(docs)
     # assemble messages: system prompt + history
     tMessages = [
         SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han."
