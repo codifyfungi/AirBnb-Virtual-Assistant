@@ -25,14 +25,6 @@ lock = threading.Lock()
 """
 Set up vector DB for rule retrieval using a free HuggingFace model.
 """
-vect_client = chromadb.PersistentClient(path="vector_db")
-embed_fn = HuggingFaceEmbeddingFunction(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-vect_collection = vect_client.get_or_create_collection(
-    "instructions",
-    embedding_function=embed_fn
-)
 def init_db():
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
@@ -267,11 +259,22 @@ def get_threads():
         rows = cursor.fetchall()
         rows.reverse()
         threads_data = defaultdict(list)
-        thread_names = {}
+        thread_info = {}
+        # Build message lists and collect thread names
         for uid, thread_id, content, name, is_host in rows:
-            # Store the first guest name per thread
-            if not is_host and thread_id not in thread_names:
-                thread_names[thread_id] = name
+            # Initialize thread entry
+            if thread_id not in thread_info:
+                thread_info[thread_id] = {"name": None, "image": None}
+            # Store the first guest name as thread name
+            if not is_host and thread_info[thread_id]["name"] is None:
+                thread_info[thread_id]["name"] = name
+                # Fetch guest image from reservations table
+                cursor.execute(
+                    "SELECT guest_image FROM reservations WHERE reservation_id = ?",
+                    (thread_id,)
+                )
+                row_img = cursor.fetchone()
+                thread_info[thread_id]["image"] = row_img[0] if row_img and row_img[0] else None
             # Format message for API response
             message_data = {
                 "role": "host" if is_host else "guest",
@@ -282,7 +285,7 @@ def get_threads():
             threads_data[thread_id].append(message_data)
         conn.close()
         return jsonify({
-            "threads": thread_names,
+            "threads": thread_info,
             "messages": threads_data,
         })
         

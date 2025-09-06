@@ -103,8 +103,14 @@ function App() {
         background: "#f9f9f9",
         overflowY: "auto"
       }}>
-        {Object.entries(threads).map(([id, name]) => (
-          <ThreadBox key={id} Name={name} selected={selectedId === id} onClick={() => setSelectedId(id)} />
+        {Object.entries(threads).map(([id, info]) => (
+          <ThreadBox
+            key={id}
+            Name={info.name}
+            image={info.image}
+            selected={selectedId === id}
+            onClick={() => setSelectedId(id)}
+          />
         ))}
       </div>
 
