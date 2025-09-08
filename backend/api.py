@@ -25,30 +25,46 @@ lock = threading.Lock()
 """
 Set up vector DB for rule retrieval using a free HuggingFace model.
 """
-vect_client = chromadb.PersistentClient(path="vector_db")
-embed_fn = HuggingFaceEmbeddingFunction(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-vect_collection = vect_client.get_or_create_collection(
-    "instructions",
-    embedding_function=embed_fn
-)
 def init_db():
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
 
     # Create table for clients
     # Create table for messages
-    # message id is email uid
+    # message id is email uid    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS listings (
+        listing_id TEXT PRIMARY KEY,
+        address TEXT
+    )
+    """)    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS reservations (
+        reservation_id TEXT PRIMARY KEY,
+        listing_id TEXT,
+        guest_name TEXT,
+        guest_image TEXT,
+        guest_location TEXT,
+        adults INT,
+        children INT,
+        guest_paid INT,
+        host_payout INT,
+        check_in_date TEXT,
+        check_out_date TEXT,
+        FOREIGN KEY (listing_id) REFERENCES listings (listing_id)
+    )
+    """)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS messages (
         uid INTEGER PRIMARY KEY,
-        thread_id TEXT NOT NULL,
+        reservation_id TEXT,
         content TEXT,
         name TEXT,
-        host INTEGER
+        host INTEGER,
+        FOREIGN KEY (reservation_id) REFERENCES listings (reservation_id)
     )
     """)
+
     conn.commit()
     conn.close()
 def get_last_seen_uid(cursor):
@@ -105,7 +121,7 @@ def watch_inbox():
             "search", None,
             'UID', f'{last_uid+1}:*',
             'FROM', '"automated@airbnb.com"',
-            'SUBJECT', '"Reservation Reminder"'
+            'SUBJECT', '"Reservation"'
         )
         auto_ids = b" ".join(data).split()
         #Create list of ids corresponding to an email    
@@ -258,7 +274,7 @@ def get_threads():
         # Fetch the 100 most recent messages, then reverse for chronological order
         cursor.execute(
             """
-            SELECT uid, thread_id, content, name, host
+            SELECT uid, reservation_id, content, name, host
             FROM messages
             ORDER BY uid DESC
             LIMIT 100
@@ -267,11 +283,22 @@ def get_threads():
         rows = cursor.fetchall()
         rows.reverse()
         threads_data = defaultdict(list)
-        thread_names = {}
+        thread_info = {}
+        # Build message lists and collect thread names and images
         for uid, thread_id, content, name, is_host in rows:
-            # Store the first guest name per thread
-            if not is_host and thread_id not in thread_names:
-                thread_names[thread_id] = name
+            # Initialize thread entry
+            if thread_id not in thread_info:
+                thread_info[thread_id] = {"name": None, "image": None}
+            # Store the first guest name as thread name and fetch image
+            if not is_host and thread_info[thread_id]["name"] is None:
+                thread_info[thread_id]["name"] = name
+                cursor.execute(
+                    "SELECT guest_image FROM reservations WHERE reservation_id = ?",
+                    (thread_id,)
+                )
+                row_img = cursor.fetchone()
+                if row_img and row_img[0]:
+                    thread_info[thread_id]["image"] = row_img[0]
             # Format message for API response
             message_data = {
                 "role": "host" if is_host else "guest",
@@ -282,7 +309,7 @@ def get_threads():
             threads_data[thread_id].append(message_data)
         conn.close()
         return jsonify({
-            "threads": thread_names,
+            "threads": thread_info,
             "messages": threads_data,
         })
         
