@@ -121,7 +121,7 @@ def watch_inbox():
             "search", None,
             'UID', f'{last_uid+1}:*',
             'FROM', '"automated@airbnb.com"',
-            'SUBJECT', '"Reservation Reminder"'
+            'SUBJECT', '"Reservation"'
         )
         auto_ids = b" ".join(data).split()
         #Create list of ids corresponding to an email    
@@ -274,7 +274,7 @@ def get_threads():
         # Fetch the 100 most recent messages, then reverse for chronological order
         cursor.execute(
             """
-            SELECT uid, thread_id, content, name, host
+            SELECT uid, reservation_id, content, name, host
             FROM messages
             ORDER BY uid DESC
             LIMIT 100
@@ -284,21 +284,21 @@ def get_threads():
         rows.reverse()
         threads_data = defaultdict(list)
         thread_info = {}
-        # Build message lists and collect thread names
+        # Build message lists and collect thread names and images
         for uid, thread_id, content, name, is_host in rows:
             # Initialize thread entry
             if thread_id not in thread_info:
                 thread_info[thread_id] = {"name": None, "image": None}
-            # Store the first guest name as thread name
+            # Store the first guest name as thread name and fetch image
             if not is_host and thread_info[thread_id]["name"] is None:
                 thread_info[thread_id]["name"] = name
-                # Fetch guest image from reservations table
                 cursor.execute(
                     "SELECT guest_image FROM reservations WHERE reservation_id = ?",
                     (thread_id,)
                 )
                 row_img = cursor.fetchone()
-                thread_info[thread_id]["image"] = row_img[0] if row_img and row_img[0] else None
+                if row_img and row_img[0]:
+                    thread_info[thread_id]["image"] = row_img[0]
             # Format message for API response
             message_data = {
                 "role": "host" if is_host else "guest",
