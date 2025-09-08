@@ -31,16 +31,40 @@ def init_db():
 
     # Create table for clients
     # Create table for messages
-    # message id is email uid
+    # message id is email uid    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS listings (
+        listing_id TEXT PRIMARY KEY,
+        address TEXT
+    )
+    """)    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS reservations (
+        reservation_id TEXT PRIMARY KEY,
+        listing_id TEXT,
+        guest_name TEXT,
+        guest_image TEXT,
+        guest_location TEXT,
+        adults INT,
+        children INT,
+        guest_paid INT,
+        host_payout INT,
+        check_in_date TEXT,
+        check_out_date TEXT,
+        FOREIGN KEY (listing_id) REFERENCES listings (listing_id)
+    )
+    """)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS messages (
         uid INTEGER PRIMARY KEY,
-        thread_id TEXT NOT NULL,
+        reservation_id TEXT,
         content TEXT,
         name TEXT,
-        host INTEGER
+        host INTEGER,
+        FOREIGN KEY (reservation_id) REFERENCES listings (reservation_id)
     )
     """)
+
     conn.commit()
     conn.close()
 def get_last_seen_uid(cursor):
