@@ -108,6 +108,9 @@ function App() {
             key={id}
             Name={info.name}
             image={info.image}
+            guestType={info.guest_type}
+            checkIn={info.check_in_date}
+            checkOut={info.check_out_date}
             selected={selectedId === id}
             onClick={() => setSelectedId(id)}
           />

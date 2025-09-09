@@ -409,6 +409,17 @@ def get_threads():
             # Initialize thread entry
             if thread_id not in thread_info:
                 thread_info[thread_id] = {"name": None, "image": None}
+                # include reservation details
+                cursor.execute(
+                    "SELECT adults, children, check_in_date, check_out_date FROM reservations WHERE reservation_id = ?",
+                    (thread_id,)
+                )
+                res = cursor.fetchone()
+                if res:
+                    adults, children, ci, co = res
+                    thread_info[thread_id]["guest_type"] = f"{adults or 0} adults, {children or 0} children"
+                    thread_info[thread_id]["check_in_date"] = ci
+                    thread_info[thread_id]["check_out_date"] = co
             # Store the first guest name as thread name and fetch image
             if not is_host and thread_info[thread_id]["name"] is None:
                 thread_info[thread_id]["name"] = name

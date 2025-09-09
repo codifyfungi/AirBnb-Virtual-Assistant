@@ -1,4 +1,4 @@
-export default function ThreadBox({ Name, image, selected, onClick }) {
+export default function ThreadBox({ Name, image, selected, onClick, guestType, checkIn, checkOut }) {
     return (
         <div
           onClick={onClick}
@@ -24,7 +24,15 @@ export default function ThreadBox({ Name, image, selected, onClick }) {
               style={{ width: 32, height: 32, borderRadius: '50%', marginRight: 8 }}
             />
           )}
-          <span>{Name}</span>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span>{Name}</span>
+            {guestType && <small style={{ color: '#6b7280' }}>{guestType}</small>}
+            {checkIn && checkOut && (
+              <small style={{ color: '#6b7280' }}>
+                {checkIn} – {checkOut}
+              </small>
+            )}
+          </div>
         </div>
       );
   }
