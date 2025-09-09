@@ -3,8 +3,8 @@ import './App.css'
 import ThreadBox from "./ThreadBox";
 
 // API base URL - change this if your Flask server runs on a different port
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-//const API_BASE_URL = "http://127.0.0.1:5000";
+//const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = "http://127.0.0.1:5000";
 
 function App() {
   const [threads, setThreads] = useState({});
@@ -106,7 +106,7 @@ function App() {
         {Object.entries(threads).map(([id, info]) => (
           <ThreadBox
             key={id}
-            Name={info.name}
+            Name={info.guest_name}
             image={info.image}
             guestType={info.guest_type}
             checkIn={info.check_in_date}

@@ -409,27 +409,20 @@ def get_threads():
             # Initialize thread entry
             if thread_id not in thread_info:
                 thread_info[thread_id] = {"name": None, "image": None}
-                # include reservation details
+                # include reservation details: guest_name, guest_type and guest_image
                 cursor.execute(
-                    "SELECT adults, children, check_in_date, check_out_date FROM reservations WHERE reservation_id = ?",
+                    "SELECT guest_name, guest_type, guest_image, check_in_date, check_out_date FROM reservations WHERE reservation_id = ?",
                     (thread_id,)
                 )
                 res = cursor.fetchone()
                 if res:
-                    adults, children, ci, co = res
-                    thread_info[thread_id]["guest_type"] = f"{adults or 0} adults, {children or 0} children"
+                    gname, gtype, img, ci, co = res
+                    thread_info[thread_id]["guest_name"] = gname
+                    thread_info[thread_id]["guest_type"] = gtype
+                    thread_info[thread_id]["image"]      = img
                     thread_info[thread_id]["check_in_date"] = ci
                     thread_info[thread_id]["check_out_date"] = co
             # Store the first guest name as thread name and fetch image
-            if not is_host and thread_info[thread_id]["name"] is None:
-                thread_info[thread_id]["name"] = name
-                cursor.execute(
-                    "SELECT guest_image FROM reservations WHERE reservation_id = ?",
-                    (thread_id,)
-                )
-                row_img = cursor.fetchone()
-                if row_img and row_img[0]:
-                    thread_info[thread_id]["image"] = row_img[0]
             # Format message for API response
             message_data = {
                 "role": "host" if is_host else "guest",

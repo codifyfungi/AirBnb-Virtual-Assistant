@@ -25,12 +25,24 @@ export default function ThreadBox({ Name, image, selected, onClick, guestType, c
             />
           )}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span>{Name}</span>
-            {guestType && <small style={{ color: '#6b7280' }}>{guestType}</small>}
-            {checkIn && checkOut && (
-              <small style={{ color: '#6b7280' }}>
-                {checkIn} – {checkOut}
-              </small>
+            {/* Guest name always visible */}
+            <div style={{ marginBottom: 6, fontWeight: '600', fontSize: '0.9rem', color: '#111' }}>
+              {Name}
+            </div>
+            {/* Guest type and dates */}
+            {(guestType || (checkIn && checkOut)) && (
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {guestType && (
+                  <div style={{ border: '1px solid #ddd', padding: '4px 6px', borderRadius: '4px', color: '#6b7280', fontSize: '0.75rem' }}>
+                    {guestType}
+                  </div>
+                )}
+                {checkIn && checkOut && (
+                  <div style={{ border: '1px solid #ddd', padding: '4px 6px', borderRadius: '4px', color: '#6b7280', fontSize: '0.75rem' }}>
+                    {checkIn} – {checkOut}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
