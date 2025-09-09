@@ -26,7 +26,7 @@ function App() {
         setThreads(data.threads);
         setMessages(data.messages);
         // On first load, select first thread and stop showing loading
-        if (loading) {
+        if (Object.keys(data.threads).length > 0) {
           setLoading(false);
         }
       } catch (err) {

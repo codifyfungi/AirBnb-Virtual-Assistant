@@ -7,6 +7,7 @@ import email
 import re
 import threading
 from bs4 import BeautifulSoup
+from email.utils import parsedate_to_datetime
 
 from collections import defaultdict
 import chromadb
@@ -18,6 +19,7 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 
 load_dotenv()
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["https://bnbot.netlify.app", "http://localhost:5173"]}})
@@ -45,8 +47,7 @@ def init_db():
         guest_name TEXT,
         guest_image TEXT,
         guest_location TEXT,
-        adults INT,
-        children INT,
+        guest_type INT,
         guest_paid INT,
         host_payout INT,
         check_in_date TEXT,
@@ -64,7 +65,6 @@ def init_db():
         FOREIGN KEY (reservation_id) REFERENCES listings (reservation_id)
     )
     """)
-
     conn.commit()
     conn.close()
 def get_last_seen_uid(cursor):
@@ -74,6 +74,7 @@ def get_last_seen_uid(cursor):
 def get_body(msg):
     plain_body = ""
     html_body  = ""
+    decoded_body = ""
     if msg.is_multipart():
         for part in msg.walk():
             # skip containers and attachments
@@ -85,6 +86,7 @@ def get_body(msg):
             if ctype == "text/plain":
                 # direct concatenation
                 plain_body += part.get_payload(decode=False) + "\n"
+                decoded_body = part.get_payload(decode=True).decode(charset, "replace") + "\n"
             elif ctype == "text/html":
                 html_body += part.get_payload(decode=True).decode(charset, "replace") + "\n"
         else:
@@ -99,7 +101,7 @@ def get_body(msg):
             r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
             plain_body
         ) 
-    return plain_body, html_body
+    return plain_body, decoded_body, html_body
 @app.route('/api/watch-inbox', methods=['POST'])
 def watch_inbox():
     if not lock.acquire(blocking=False):
@@ -116,14 +118,22 @@ def watch_inbox():
         mail.login(EM, PASSWORD)
         mail.select("inbox")
         #Data is a list of byte strings
-        # Retrieve any new automated reservation reminders
+        # Retrieve any new automated reservation emails with either Reminder, Confirmed, or Inquiry subjects
         status, data = mail.uid(
             "search", None,
             'UID', f'{last_uid+1}:*',
             'FROM', '"automated@airbnb.com"',
-            'SUBJECT', '"Reservation"'
+            'SUBJECT', '"Reservation Confirmed"'
         )
-        auto_ids = b" ".join(data).split()
+
+        auto_ids = b" ".join(data).split()        
+        status, data = mail.uid(
+            "search", None,
+            'UID', f'{last_uid+1}:*',
+            'FROM', '"automated@airbnb.com"',
+            'SUBJECT', '"Inquiry"'
+        )
+        inq_ids = b" ".join(data).split()
         #Create list of ids corresponding to an email    
         status, data = mail.uid(
             "search", None,
@@ -133,12 +143,14 @@ def watch_inbox():
         express_ids = b" ".join(data).split()
         print("IDS")
         print(last_uid+1)
-        for uid in auto_ids:
+        for uid in inq_ids:
             status, msg_data = mail.uid("FETCH",uid,"(RFC822)")
             uid = int(uid.decode())
             print(uid)
             msg = email.message_from_bytes(msg_data[0][1])
-            plain_body, html_body = get_body(msg)
+            plain_body,decoded_body, html_body = get_body(msg)
+            soup = BeautifulSoup(html_body, "html.parser")
+            ptexts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
             m = re.search(
                 r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
                 plain_body
@@ -146,22 +158,98 @@ def watch_inbox():
             reservation_id = m.group(1)
             list_m = re.search(r"https?://www\.airbnb\.com/rooms/(\d+)", plain_body)
             listing_id = list_m.group(1) if list_m else None
-            loc_m = re.search(
-                r"https?://www\.airbnb\.com/hosting/reservations/details/[^\s]+\S.*?\r?\n\s*([A-Za-z ]+,\s*[A-Z]{2}|US)\s*(?:\r?\n|$)",
+            guest_location = ptexts[2] if ptexts[1].startswith("Identity verified") else ptexts[1]
+            # Extract guest name: inquiry or confirmed patterns
+            guest_name = ptexts[0]
+            # Extract payment details
+            paid_m = re.search(r"TOTAL \(USD\)\s*\$([\d,\.]+)", plain_body)
+            total_paid = paid_m.group(1) if paid_m else None
+            earn_m = re.search(r"YOU EARN\s*\$([\d,\.\-]+)", plain_body)
+            host_payout = earn_m.group(1) if earn_m else None
+            # Extract check-in and check-out dates based on the block with 'Check-in    Checkout' and a date line
+            dates_m = re.search(
+                r'Check-in[\s\S]*?^\s*([A-Za-z]{3},\s*[A-Za-z]{3}\s+\d{1,2}(?:,\s*\d{4})?)\s+([A-Za-z]{3},\s*[A-Za-z]{3}\s+\d{1,2}(?:,\s*\d{4})?)',
                 plain_body,
-                flags=re.IGNORECASE | re.DOTALL
+                flags=re.IGNORECASE | re.MULTILINE
             )
-            guest_location = loc_m.group(1).strip() if loc_m else None
-            # Extract guest name from Subject line (e.g. 'Reservation reminder: Jerome is coming soon!')
-            subject = msg.get('Subject', '')
-            # Capture the name following 'Reservation reminder:'
-            sub_m = re.search(r'Reservation reminder:\s*([A-Za-z]+)', subject, flags=re.IGNORECASE)
-            guest_name = sub_m.group(1) if sub_m else None
+            if dates_m:
+                check_in_date, check_out_date = dates_m.groups()
+                if len(check_in_date.split(',')) < 3:
+                    msg_date = parsedate_to_datetime(msg.get("Date"))
+                    check_in_date += f", {msg_date.year}"
+                    check_out_date += f", {msg_date.year}"
+            # Override with direct muscache user image URL from either /im/pictures/user or /im/users/.../profile_pic
+            guest_type = ptexts[-8]
+            message = ptexts[3]
+            if listing_id:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO listings (listing_id) VALUES (?)",
+                    (listing_id,)
+                )
+            guest_image = None
+            # Upsert reservation with detailed fields
+            cursor.execute(
+                """
+                INSERT INTO reservations (
+                    reservation_id,
+                    listing_id,
+                    guest_name,
+                    guest_image,
+                    guest_location,
+                    guest_type,
+                    guest_paid,
+                    host_payout,
+                    check_in_date,
+                    check_out_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(reservation_id) DO UPDATE SET
+                    listing_id     = COALESCE(listing_id,     excluded.listing_id),
+                    guest_name     = COALESCE(guest_name,     excluded.guest_name),
+                    guest_image    = COALESCE(guest_image,    excluded.guest_image),
+                    guest_location = COALESCE(guest_location, excluded.guest_location),
+                    guest_type     = COALESCE(guest_type,     excluded.guest_type),
+                    guest_paid     = COALESCE(guest_paid,     excluded.guest_paid),
+                    host_payout    = COALESCE(host_payout,    excluded.host_payout),
+                    check_in_date  = COALESCE(check_in_date,  excluded.check_in_date),
+                    check_out_date = COALESCE(check_out_date, excluded.check_out_date)
+                """,
+                (reservation_id,
+                    listing_id,
+                    guest_name,
+                    guest_image,
+                    guest_location,
+                    guest_type,
+                    total_paid,
+                    host_payout,
+                    check_in_date,
+                    check_out_date)
+            )
+            # sanitize text fields to remove invalid surrogates
+            safe_message = message.encode('utf-8', 'replace').decode('utf-8')
+            cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, reservation_id, safe_message, guest_name, 0))
+        for uid in auto_ids:
+            status, msg_data = mail.uid("FETCH",uid,"(RFC822)")
+            uid = int(uid.decode())
+            msg = email.message_from_bytes(msg_data[0][1])
+            plain_body,decoded_body, html_body = get_body(msg)
+            soup = BeautifulSoup(html_body, "html.parser")
+            ptexts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+            print(uid)
+            m = re.search(
+                r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
+                plain_body
+            )
+            reservation_id = m.group(1)
+            list_m = re.search(r"https?://www\.airbnb\.com/rooms/(\d+)", plain_body)
+            listing_id = list_m.group(1) if list_m else None
+            guest_location = ptexts[3] if ptexts[0].startswith("Send a message to confirm") else ptexts[2]
+            # Extract guest name from Subject line
+            # Extract guest name: inquiry or confirmed patterns
+            guest_name = ptexts[1]
             # Extract number of adults and children
-            ad_m = re.search(r"(\d+)\s+adults", plain_body)
-            adults = int(ad_m.group(1)) if ad_m else None
-            ch_m = re.search(r"(\d+)\s+children", plain_body)
-            children = int(ch_m.group(1)) if ch_m else None
+            for i in range(len(ptexts)):
+                if ptexts[i] == "'Guests will now let them know if they’re bringing children and infants. Let them know upfront if your listing is suitable for children by updating your House Rules.'":
+                    guest_type = ptexts[i-1]
             # Extract payment details
             paid_m = re.search(r"TOTAL \(USD\)\s*\$([\d,\.]+)", plain_body)
             total_paid = paid_m.group(1) if paid_m else None
@@ -177,6 +265,10 @@ def watch_inbox():
                 check_in_date, check_out_date = dates_m.groups()
             else:
                 check_in_date = check_out_date = None
+            if len(check_in_date.split(',')) < 3:
+                msg_date = parsedate_to_datetime(msg.get("Date"))
+                check_in_date += f", {msg_date.year}"
+                check_out_date += f", {msg_date.year}"
             # Override with direct muscache user image URL from either /im/pictures/user or /im/users/.../profile_pic
             img_m = re.search(
                 # Match both /im/pictures/user and /im/users/.../profile_pic paths
@@ -188,9 +280,6 @@ def watch_inbox():
                 guest_image = img_m.group(1)
             except AttributeError:
                 guest_image = None
-            soup = BeautifulSoup(html_body, "html.parser")
-            ptexts = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
-            message = None
             if listing_id:
                 cursor.execute(
                     "INSERT OR IGNORE INTO listings (listing_id) VALUES (?)",
@@ -198,18 +287,47 @@ def watch_inbox():
                 )
             # Upsert reservation with detailed fields
             cursor.execute(
-                "INSERT OR IGNORE INTO reservations (reservation_id, listing_id, guest_name, guest_image, guest_location, adults, children, guest_paid, host_payout, check_in_date, check_out_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (reservation_id, listing_id, guest_name, guest_image, guest_location, adults, children, total_paid, host_payout, check_in_date, check_out_date)
+                """
+                INSERT INTO reservations (
+                    reservation_id,
+                    listing_id,
+                    guest_name,
+                    guest_image,
+                    guest_location,
+                    guest_type,
+                    guest_paid,
+                    host_payout,
+                    check_in_date,
+                    check_out_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(reservation_id) DO UPDATE SET
+                    listing_id     = COALESCE(listing_id,     excluded.listing_id),
+                    guest_name     = COALESCE(guest_name,     excluded.guest_name),
+                    guest_image    = COALESCE(guest_image,    excluded.guest_image),
+                    guest_location = COALESCE(guest_location, excluded.guest_location),
+                    guest_type     = COALESCE(guest_type,     excluded.guest_type),
+                    guest_paid     = COALESCE(guest_paid,     excluded.guest_paid),
+                    host_payout    = COALESCE(host_payout,    excluded.host_payout),
+                    check_in_date  = COALESCE(check_in_date,  excluded.check_in_date),
+                    check_out_date = COALESCE(check_out_date, excluded.check_out_date)
+                """,
+                (reservation_id,
+                    listing_id,
+                    guest_name,
+                    guest_image,
+                    guest_location,
+                    guest_type,
+                    total_paid,
+                    host_payout,
+                    check_in_date,
+                    check_out_date)
             )
-            if ptexts[5] != "Entire home/apt":
-                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, reservation_id, ptexts[5], guest_name, 0))
         for uid in express_ids:
             status, msg_data = mail.uid("FETCH",uid,"(RFC822)")
             uid = int(uid.decode())
             msg = email.message_from_bytes(msg_data[0][1])
+            plain_body,_, html_body = get_body(msg)
             print(uid)
-            print(msg["From"])
-            plain_body, html_body = get_body(msg)
             m = re.search(
                 r'https://www\.airbnb\.com/hosting/thread/(\d+)\?',
                 plain_body
@@ -221,14 +339,16 @@ def watch_inbox():
             image_srcs = [img["src"] for img in soup.find_all("img", src=True)]
             if ptexts[1] == "Host" or ptexts[1] == "Guest" or ptexts[1] == "Booker":
                 message = ptexts[2]
+                safe_message = message.encode('utf-8', 'replace').decode('utf-8')
                 host = ptexts[1] == "Host"
                 name = h2texts[0]
-                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, reservation_id, message, name, host))
+                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, reservation_id, safe_message, name, host))
             else:
                 message = ptexts[2]
+                safe_message = message.encode('utf-8', 'replace').decode('utf-8')
                 host = image_srcs[2] == "https://a0.muscache.com/im/pictures/user/89a57bc6-3c38-435c-807d-904e2bac20c1.jpg?aki_policy=profile_medium" 
                 name = ptexts[1]
-                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, reservation_id, message, name, host))
+                cursor.execute("INSERT OR IGNORE INTO messages VALUES (?, ?, ?, ?, ?)", (uid, reservation_id, safe_message, name, host))
         conn.commit()
         conn.close()
         return ("", 204)
