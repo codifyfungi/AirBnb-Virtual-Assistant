@@ -40,7 +40,7 @@ function App() {
     setLoading(true)
     setError(null)
     pollBackend()
-    const intervalId = setInterval(pollBackend, 1000)
+    const intervalId = setInterval(pollBackend, 500)
     return () => clearInterval(intervalId)
   }, [])
 
