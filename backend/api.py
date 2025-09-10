@@ -22,7 +22,7 @@ load_dotenv()
 
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": ["https://bnbot.netlify.app", "http://localhost:5173"]}})
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 lock = threading.Lock()
 """
 Set up vector DB for rule retrieval using a free HuggingFace model.
@@ -383,62 +383,44 @@ def query(messages):
     ]
     # invoke chat
     return get_openrouter_chat().invoke(tMessages).content
-@app.route('/api/threads', methods=['GET'])
-def get_threads():
-    """Get all email threads with messages from database"""
+
+@app.route('/api/thread', methods=['GET'])
+def get_thread():
+    """Get the current email thread and its details"""
+    thread_id = current_thread_id
+    if not thread_id:
+        return jsonify({"error": "No current thread set"}), 404
     try:
-        # Connect to database
         conn = sqlite3.connect("airbnb.db")
         cursor = conn.cursor()
-        
-        # Fetch the 100 most recent messages, then reverse for chronological order
+        # Fetch reservation details for current thread_id
         cursor.execute(
-            """
-            SELECT uid, reservation_id, content, name, host
-            FROM messages
-            ORDER BY uid DESC
-            LIMIT 100
-            """
+            "SELECT reservation_id, listing_id, guest_name, guest_image, guest_location, guest_type, check_in_date, check_out_date "
+            "FROM reservations WHERE reservation_id = ?",
+            (thread_id,)
         )
-        rows = cursor.fetchall()
-        rows.reverse()
-        threads_data = defaultdict(list)
-        thread_info = {}
-        # Build message lists and collect thread names and images
-        for uid, thread_id, content, name, is_host in rows:
-            # Initialize thread entry
-            if thread_id not in thread_info:
-                thread_info[thread_id] = {"name": None, "image": None}
-                # include reservation details: guest_name, guest_type and guest_image
-                cursor.execute(
-                    "SELECT guest_name, guest_type, guest_image, check_in_date, check_out_date FROM reservations WHERE reservation_id = ?",
-                    (thread_id,)
-                )
-                res = cursor.fetchone()
-                if res:
-                    gname, gtype, img, ci, co = res
-                    thread_info[thread_id]["guest_name"] = gname
-                    thread_info[thread_id]["guest_type"] = gtype
-                    thread_info[thread_id]["image"]      = img
-                    thread_info[thread_id]["check_in_date"] = ci
-                    thread_info[thread_id]["check_out_date"] = co
-            # Store the first guest name as thread name and fetch image
-            # Format message for API response
-            message_data = {
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Thread not found"}), 404
+        cols = [d[0] for d in cursor.description]
+        thread_info = dict(zip(cols, row))
+        # Fetch messages for this thread
+        cursor.execute(
+            "SELECT content, name, host FROM messages WHERE reservation_id = ? ORDER BY uid ASC",
+            (thread_id,)
+        )
+        msgs = cursor.fetchall()
+        messages = []
+        for content, name, is_host in msgs:
+            messages.append({
                 "role": "host" if is_host else "guest",
-                "text": content,
                 "name": name,
-                "time": "Recent"
-            }
-            threads_data[thread_id].append(message_data)
+                "text": content
+            })
         conn.close()
-        return jsonify({
-            "threads": thread_info,
-            "messages": threads_data,
-        })
-        
+        return jsonify({"thread": thread_info, "messages": messages})
     except Exception as e:
-        print(f"Error fetching threads from database: {e}")
+        print(f"Error fetching thread {thread_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/query', methods=['POST'])
@@ -453,5 +435,21 @@ def process_query():
     except Exception as e:
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
+
+# Keep the current thread ID in memory
+current_thread_id = None
+
+@app.route("/api/current-thread", methods=["GET", "POST"])
+def current_thread():
+    global current_thread_id
+    if request.method == "POST":
+        data = request.get_json()
+        # Expect { threadId: "<reservation_id>" }
+        current_thread_id = data.get("threadId")
+        print(current_thread_id)
+        return ("", 204)
+    # GET returns the last set threadId (or None)
+    return jsonify({"threadId": current_thread_id})
+
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False, port=5000)

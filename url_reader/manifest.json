@@ -1,0 +1,7 @@
+{
+  "name": "Latest Airbnb URL (local)",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "permissions": ["history", "storage"],
+  "background": { "service_worker": "worker.js" }
+}
