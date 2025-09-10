@@ -10,7 +10,7 @@ chrome.history.onVisited.addListener(async (item) => {
 
     // 1) Keep the chrome.storage.local entry (optional)
     await chrome.storage.local.set({ [KEY]: threadId });
-
+    console.log("Updated threadId:", threadId);
     // 2) Push it to your backend so App.jsx can fetch it
     fetch(`${API_BASE}/api/current-thread`, {
       method: "POST",
@@ -18,6 +18,6 @@ chrome.history.onVisited.addListener(async (item) => {
       body: JSON.stringify({ threadId })
     }).catch(console.error);
 
-    console.log("Updated threadId:", threadId);
+    
   }
 });
