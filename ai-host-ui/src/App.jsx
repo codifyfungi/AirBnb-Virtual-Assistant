@@ -78,38 +78,7 @@ function App() {
       </div>
       {/* scrollable messages */}
       <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-        {loading && <p>Loading...</p>}
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        {threadInfo ? (
-          <div style={{ textAlign: 'left' }}>
-            {threadMessages.map((msg, idx) => (
-              <div key={idx} style={{
-                backgroundColor: msg.role === 'guest' ? '#f5f5f5' : '#e6f7ff',
-                padding: '8px',
-                borderRadius: '8px',
-                marginBottom: '8px'
-              }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                  {msg.role === 'guest' ? msg.name : 'You'}
-                </div>
-                <div>{msg.text}</div>
-              </div>
-            ))}
-            {response && (
-              <div style={{
-                backgroundColor: '#d9f7be',
-                padding: '8px',
-                borderRadius: '8px',
-                marginBottom: '8px'
-              }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Assistant</div>
-                <div>{response}</div>
-              </div>
-            )}
-          </div>
-        ) : (
-          !loading && <p style={{ textAlign: 'center', marginTop: '40px' }}>No conversation selected.</p>
-        )}
+        {/* Messages display is disabled; only guest info appears above */}
       </div>
       <div style={{ padding: '20px', borderTop: '1px solid #ddd' }}>
         <input
