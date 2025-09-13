@@ -22,7 +22,14 @@ load_dotenv()
 
 current_thread_id = None
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# Allow your Netlify front-end (and localhost) to hit every route
+CORS(
+    app,
+    resources={r"/*": {"origins": ["https://bnbot.netlify.app", "http://localhost:5173"]}},
+    supports_credentials=True
+)
+
 lock = threading.Lock()
 """
 Set up vector DB for rule retrieval using a free HuggingFace model.
