@@ -408,27 +408,33 @@ def get_thread():
 def get_questions():
     """Fetch the last guest message for the current thread and return clarifying questions."""
     try:
-        # Retrieve last guest message
-        conn = sqlite3.connect("airbnb.db")
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT content FROM messages WHERE reservation_id=? AND host=0 ORDER BY uid DESC LIMIT 1",  
-            (current_thread_id,)
-        )
-        row = cursor.fetchone()
-        conn.close()
-        last_msg = row[0] if row else ""
-        # Query LLM for clarifying questions
-        llm = get_openrouter_chat()
-        sys_msg = SystemMessage(
-            content="Given this guest's last message, return a JSON list of clarifying questions to ask the host.(It could be empty if no questions are needed.)"
-        )
-        human_msg = HumanMessage(content=last_msg)
-        raw = llm.invoke([sys_msg, human_msg])
-        try:
-            questions = json.loads(raw)
-        except Exception:
-            questions = [q.strip('- ').strip() for q in raw.splitlines() if q.strip()]
+        # --- Original dynamic LLM-based logic (commented out for testing) ---
+        # conn = sqlite3.connect("airbnb.db")
+        # cursor = conn.cursor()
+        # cursor.execute(
+        #     "SELECT content FROM messages WHERE reservation_id=? AND host=0 ORDER BY uid DESC LIMIT 1",  
+        #     (current_thread_id,)
+        # )
+        # row = cursor.fetchone()
+        # conn.close()
+        # last_msg = row[0] if row else ""
+        # llm = get_openrouter_chat()
+        # sys_msg = SystemMessage(
+        #     content="Given this guest's last message, return a JSON list of clarifying questions to ask the host.(It could be empty if no questions are needed.)"
+        # )
+        # human_msg = HumanMessage(content=last_msg)
+        # raw = llm.invoke([sys_msg, human_msg])
+        # try:
+        #     questions = json.loads(raw)
+        # except Exception:
+        #     questions = [q.strip('- ').strip() for q in raw.splitlines() if q.strip()]
+        # return jsonify({"questions": questions})
+        # --- Testing stub: return a fixed set of clarifying questions ---
+        questions = [
+            "What time is the guest planning to arrive?",
+            "Does the guest need any special accommodations?",
+            "Will the guest be bringing additional guests?"
+        ]
         return jsonify({"questions": questions})
     except Exception as e:
         print(f"Error processing query: {e}")
