@@ -77,7 +77,7 @@ function App() {
         )}
       </div>
       {/* main content: two panels side by side */}
-      <div style={{ flex: 1, display: 'flex' }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         {/* Left panel: messages */}
         <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
           {loading && <p>Loading...</p>}
