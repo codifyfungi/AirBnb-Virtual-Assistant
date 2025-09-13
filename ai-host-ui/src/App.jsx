@@ -79,7 +79,7 @@ function App() {
       {/* main content: two panels side by side */}
       <div style={{ flex: 1, display: 'flex' }}>
         {/* Left panel: messages */}
-        <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+        <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
           {loading && <p>Loading...</p>}
           {error && <p style={{ color: 'red' }}>{error}</p>}
           {threadInfo ? (
@@ -114,9 +114,9 @@ function App() {
           )}
         </div>
         {/* Right panel: query section */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: '1px solid #ddd' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid #ddd' }}>
           {/* query results or context */}
-          <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
             {/* Search results will appear here */}
           </div>
           {/* search bar at bottom */}
