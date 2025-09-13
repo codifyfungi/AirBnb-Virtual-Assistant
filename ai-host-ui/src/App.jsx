@@ -11,6 +11,9 @@ function App() {
   const [response, setResponse] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [questions, setQuestions] = useState([])
+  const [currentQIndex, setCurrentQIndex] = useState(0)
+  const [hostAnswers, setHostAnswers] = useState([])
 
   // combined polling: get current thread, ingest new emails, refresh thread details
   useEffect(() => {
@@ -48,13 +51,10 @@ function App() {
     if (!threadId) return
     setLoading(true)
     setError(null)
-    const payload = { threadId: threadId.id, messages: [...threadMessages, { role: 'user', content: query }] }
+    //const payload = { threadId: threadId.id, messages: [...threadMessages, { role: 'user', content: query }] }
     try {
-      const res = await fetch(`${API_BASE_URL}/api/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      // GET request to query endpoint without payload
+      const res = await fetch(`${API_BASE_URL}/api/getquestions`)
       if (!res.ok) throw new Error('Failed to send query')
       const data = await res.json()
       setResponse(data.response)
@@ -63,6 +63,31 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleGetQuestions = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/getquestions`)
+      if (!res.ok) throw new Error('Failed to fetch questions')
+      const data = await res.json()
+      setQuestions(data.questions || [])
+      setCurrentQIndex(0)
+      setHostAnswers([])
+      setQuery('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAnswerSubmit = () => {
+    if (!query.trim()) return
+    setHostAnswers(prev => [...prev, query.trim()])
+    setQuery('')
+    setCurrentQIndex(prev => prev + 1)
   }
 
   return (
@@ -119,24 +144,29 @@ function App() {
           <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
             {/* Search results will appear here */}
           </div>
-          {/* search bar at bottom */}
+          {/* search bar / Q&A at bottom */}
           <div style={{ padding: '20px', borderTop: '1px solid #ddd', textAlign: 'center' }}>
-            {!response ? (
-              <button onClick={handleSend} style={{ padding: '8px 16px' }}>
-                Generate Response
+            {loading && <p>Loading...</p>}
+            {error && <p style={{ color: 'red' }}>{error}</p>}
+            {questions.length === 0 ? (
+              <button onClick={handleGetQuestions} style={{ padding: '8px 16px' }}>
+                Generate Questions
               </button>
-            ) : (
-              <>
+            ) : currentQIndex < questions.length ? (
+              <div>
+                <p style={{ marginBottom: '8px' }}>{questions[currentQIndex]}</p>
                 <input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder='Type your query'
+                  placeholder='Your answer'
                   style={{ width: '80%', padding: '8px' }}
                 />
-                <button onClick={handleSend} style={{ marginLeft: '8px', padding: '8px 16px' }}>
-                  Send
+                <button onClick={handleAnswerSubmit} style={{ marginLeft: '8px', padding: '8px 16px' }}>
+                  Submit Answer
                 </button>
-              </>
+              </div>
+            ) : (
+              <p>All questions answered.</p>
             )}
           </div>
         </div>

@@ -16,7 +16,7 @@ from langchain_core.messages import trim_messages
 from dotenv import load_dotenv
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+import json
 
 load_dotenv()
 
@@ -364,25 +364,6 @@ def get_openrouter_chat() -> ChatOpenAI:
         temperature=0.7,
         max_tokens=512,
     )
-def query(messages):
-    # build thread text and retrieve top-5 rules
-    thread_text = "\n".join(m['text'] for m in messages) if messages else ""
-    docs = vect_collection.query(
-        query_texts=[thread_text], n_results=5, include=["documents"]
-    ).get("documents", [[]])[0] if messages else []
-    # combine static context and retrieved rules
-    dynamic_ctx = "\n\n".join(docs)
-    # assemble messages: system prompt + history
-    tMessages = [
-        SystemMessage(content=f"You are the host of an Oceanside house, your name is Tina Han."
-                        f" Be warm, concise, and solution-oriented. Never share internal notes."
-                        f" Follow HOUSE RULES and AIRBNB POLICIES below.\n\n{dynamic_ctx}")
-    ] + [
-        (AIMessage if m['role']=='host' else HumanMessage)(content=f"{m['name']} {m['text']}")
-        for m in messages
-    ]
-    # invoke chat
-    return get_openrouter_chat().invoke(tMessages).content
 
 @app.route('/api/thread', methods=['GET'])
 def get_thread():
@@ -423,15 +404,32 @@ def get_thread():
         print(f"Error fetching thread {thread_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/query', methods=['POST'])
-def process_query():
-    """Process a prompt for a specific thread"""
+@app.route('/api/getquestions', methods=['GET'])
+def get_questions():
+    """Fetch the last guest message for the current thread and return clarifying questions."""
     try:
-        data = request.json
-        messages = data.get('messages', [])
-        # Generate AI response using enriched query helper
-        response = query(messages)
-        return jsonify({"response": response})
+        # Retrieve last guest message
+        conn = sqlite3.connect("airbnb.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT content FROM messages WHERE reservation_id=? AND host=0 ORDER BY uid DESC LIMIT 1",  
+            (current_thread_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        last_msg = row[0] if row else ""
+        # Query LLM for clarifying questions
+        llm = get_openrouter_chat()
+        sys_msg = SystemMessage(
+            content="Given this guest's last message, return a JSON list of clarifying questions to ask the host.(It could be empty if no questions are needed.)"
+        )
+        human_msg = HumanMessage(content=last_msg)
+        raw = llm.invoke([sys_msg, human_msg])
+        try:
+            questions = json.loads(raw)
+        except Exception:
+            questions = [q.strip('- ').strip() for q in raw.splitlines() if q.strip()]
+        return jsonify({"questions": questions})
     except Exception as e:
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500
@@ -449,6 +447,8 @@ def current_thread():
         return ("", 204)
     # GET returns the last set threadId (or None)
     return jsonify({"threadId": current_thread_id})
+
+# --- helper: generate questions for last message ---
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False, port=5000)
