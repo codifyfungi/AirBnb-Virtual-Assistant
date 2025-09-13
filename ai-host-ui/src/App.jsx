@@ -163,16 +163,25 @@ function App() {
           <div style={{ padding: '20px', borderTop: '1px solid #ddd', textAlign: 'center' }}>
             {loading && <p>Loading...</p>}
             {error && <p style={{ color: 'red' }}>{error}</p>}
-            <input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAnswerSubmit()}
-              placeholder='Your answer'
-              style={{ width: '80%', padding: '8px' }}
-            />
-            <button onClick={handleAnswerSubmit} style={{ marginLeft: '8px', padding: '8px 16px' }}>
-              Generate Response
-            </button>
+            {questions.length === 0 ? (
+              <button onClick={handleGetQuestions} style={{ padding: '8px 16px' }}>
+                Generate Questions
+              </button>
+            ) : currentQIndex < questions.length ? (
+              <>
+                <input
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder='Your answer'
+                  style={{ width: '80%', padding: '8px' }}
+                />
+                <button onClick={handleAnswerSubmit} style={{ marginLeft: '8px', padding: '8px 16px' }}>
+                  Submit Answer
+                </button>
+              </>
+            ) : (
+              <p>All questions answered.</p>
+            )}
           </div>
         </div>
       </div>
