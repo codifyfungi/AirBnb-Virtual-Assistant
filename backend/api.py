@@ -20,7 +20,7 @@ from langchain.schema import SystemMessage, HumanMessage, AIMessage
 
 load_dotenv()
 
-
+current_thread_id = None
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 lock = threading.Lock()
@@ -437,7 +437,6 @@ def process_query():
         return jsonify({"error": str(e)}), 500
 
 # Keep the current thread ID in memory
-current_thread_id = None
 
 @app.route("/api/current-thread", methods=["GET", "POST"])
 def current_thread():
