@@ -140,23 +140,23 @@ function App() {
         </div>
         {/* Right panel: query section */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid #ddd' }}>
-          {/* query questions and host answers */}
+          {/* current question and host answer */}
           <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
-            {questions.length > 0 ? (
-              <div>
-                {questions.map((q, idx) => (
-                  <div key={idx} style={{ marginBottom: '16px' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{q}</div>
-                    {hostAnswers[idx] != null && (
-                      <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px' }}>
-                        {hostAnswers[idx]}
-                      </div>
-                    )}
+            {questions.length === 0 ? (
+              <p style={{ color: '#888', textAlign: 'center' }}>No questions generated.</p>
+            ) : currentQIndex < questions.length ? (
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                  {questions[currentQIndex]}
+                </p>
+                {hostAnswers[currentQIndex] && (
+                  <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px' }}>
+                    {hostAnswers[currentQIndex]}
                   </div>
-                ))}
+                )}
               </div>
             ) : (
-              <p style={{ color: '#888', textAlign: 'center' }}>No questions generated yet.</p>
+              <p style={{ textAlign: 'center' }}>All questions answered.</p>
             )}
           </div>
           {/* search bar / Q&A at bottom */}
@@ -168,8 +168,7 @@ function App() {
                 Generate Questions
               </button>
             ) : currentQIndex < questions.length ? (
-              <div>
-                <p style={{ marginBottom: '8px' }}>{questions[currentQIndex]}</p>
+              <>
                 <input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
@@ -179,7 +178,7 @@ function App() {
                 <button onClick={handleAnswerSubmit} style={{ marginLeft: '8px', padding: '8px 16px' }}>
                   Submit Answer
                 </button>
-              </div>
+              </>
             ) : (
               <p>All questions answered.</p>
             )}
