@@ -140,9 +140,24 @@ function App() {
         </div>
         {/* Right panel: query section */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid #ddd' }}>
-          {/* query results or context */}
+          {/* query questions and host answers */}
           <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
-            {/* Search results will appear here */}
+            {questions.length > 0 ? (
+              <div>
+                {questions.map((q, idx) => (
+                  <div key={idx} style={{ marginBottom: '16px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{q}</div>
+                    {hostAnswers[idx] != null && (
+                      <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px' }}>
+                        {hostAnswers[idx]}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#888', textAlign: 'center' }}>No questions generated yet.</p>
+            )}
           </div>
           {/* search bar / Q&A at bottom */}
           <div style={{ padding: '20px', borderTop: '1px solid #ddd', textAlign: 'center' }}>
