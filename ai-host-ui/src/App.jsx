@@ -120,16 +120,24 @@ function App() {
             {/* Search results will appear here */}
           </div>
           {/* search bar at bottom */}
-          <div style={{ padding: '20px', borderTop: '1px solid #ddd' }}>
-            <input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder='Type your query'
-              style={{ width: '80%', padding: '8px' }}
-            />
-            <button onClick={handleSend} style={{ marginLeft: '8px', padding: '8px 16px' }}>
-              Send
-            </button>
+          <div style={{ padding: '20px', borderTop: '1px solid #ddd', textAlign: 'center' }}>
+            {!response ? (
+              <button onClick={handleSend} style={{ padding: '8px 16px' }}>
+                Generate Response
+              </button>
+            ) : (
+              <>
+                <input
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder='Type your query'
+                  style={{ width: '80%', padding: '8px' }}
+                />
+                <button onClick={handleSend} style={{ marginLeft: '8px', padding: '8px 16px' }}>
+                  Send
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
