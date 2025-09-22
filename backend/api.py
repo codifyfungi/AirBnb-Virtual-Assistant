@@ -1,3 +1,4 @@
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
@@ -105,6 +106,32 @@ def get_body(msg):
             plain_body
         ) 
     return plain_body, decoded_body, html_body
+@app.route('/api/host-answers', methods=['POST'])
+def host_answers():
+    """Accept host answers, use latest message as context for LLM reply (no vector DB)."""
+    data = request.get_json()
+    answers = data.get('hostAnswers', [])
+    thread_id = current_thread_id
+    # Fetch latest message from thread
+    conn = sqlite3.connect("airbnb.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT content, name, host FROM messages WHERE reservation_id = ? ORDER BY uid DESC LIMIT 1", (thread_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        content, name, is_host = row
+        role = "host" if is_host else "guest"
+        latest_msg = f"{role.title()}: {name}: {content}"
+    else:
+        latest_msg = ""
+    # Compose LLM prompt
+    llm = get_openrouter_chat()
+    sys_msg = SystemMessage(content="Given the following latest message and host's answers, write a warm, helpful response to the guest.")
+    host_context = "\n".join([f"Host answer: {a}" for a in answers])
+    prompt = f"{latest_msg}\n\n{host_context}"
+    human_msg = HumanMessage(content=prompt)
+    reply = [sys_msg, human_msg]
+    return jsonify({"response": reply})
 @app.route('/api/watch-inbox', methods=['POST'])
 def watch_inbox():
     if not lock.acquire(blocking=False):

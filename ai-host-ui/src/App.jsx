@@ -83,11 +83,31 @@ function App() {
     }
   }
 
-  const handleAnswerSubmit = () => {
+  const handleAnswerSubmit = async () => {
     if (!query.trim()) return
-    setHostAnswers(prev => [...prev, query.trim()])
+    const newAnswers = [...hostAnswers, query.trim()]
+    setHostAnswers(newAnswers)
     setQuery('')
-    setCurrentQIndex(prev => prev + 1)
+    const nextQ = currentQIndex + 1
+    setCurrentQIndex(nextQ)
+    // If that was the last question, send to backend
+    if (nextQ === questions.length) {
+      setLoading(true)
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/host-answers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hostAnswers: newAnswers })
+        })
+        if (!res.ok) throw new Error('Failed to get LLM response')
+        const data = await res.json()
+        setResponse(data.response)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
   }
 
   return (
