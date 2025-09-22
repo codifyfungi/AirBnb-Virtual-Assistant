@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL
@@ -14,6 +14,7 @@ function App() {
   const [questions, setQuestions] = useState([])
   const [currentQIndex, setCurrentQIndex] = useState(0)
   const [hostAnswers, setHostAnswers] = useState([])
+  const prevThreadId = useRef(null)
 
   // combined polling: get current thread, ingest new emails, refresh thread details
   useEffect(() => {
@@ -28,7 +29,10 @@ function App() {
           const { thread, messages } = await (await fetch(`${API_BASE_URL}/api/thread`)).json()
           setThreadInfo(thread)
           setThreadMessages(messages)
-          setResponse('')
+          if (prevThreadId.current !== newId) {
+            setResponse('')
+            prevThreadId.current = newId
+          }
         }
       } catch (err) {
         console.error('Polling error:', err)
@@ -178,9 +182,19 @@ function App() {
             ) : (
               <div style={{ textAlign: 'center', marginTop: '40px' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Assistant Response:</div>
-                <div style={{ backgroundColor: '#d9f7be', padding: '12px', borderRadius: '8px', display: 'inline-block' }}>
+                <div style={{ backgroundColor: '#d9f7be', padding: '12px', borderRadius: '8px', display: 'inline-block', marginBottom: '16px' }}>
                   {response}
                 </div>
+                <br />
+                <button onClick={() => {
+                  setQuestions([])
+                  setCurrentQIndex(0)
+                  setHostAnswers([])
+                  setQuery('')
+                  setResponse('')
+                }} style={{ marginTop: '12px', padding: '8px 16px' }}>
+                  Reset
+                </button>
               </div>
             )}
           </div>
