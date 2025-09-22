@@ -176,7 +176,12 @@ function App() {
                 )}
               </div>
             ) : (
-              <p style={{ textAlign: 'center' }}>All questions answered.</p>
+              <div style={{ textAlign: 'center', marginTop: '40px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Assistant Response:</div>
+                <div style={{ backgroundColor: '#d9f7be', padding: '12px', borderRadius: '8px', display: 'inline-block' }}>
+                  {response}
+                </div>
+              </div>
             )}
           </div>
           {/* search bar / Q&A at bottom */}
