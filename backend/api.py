@@ -25,7 +25,7 @@ current_thread_id = None
 app = Flask(__name__)
 
 # Allow your Netlify front-end (and localhost) to hit every route
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": ["https://bnbot.netlify.app"]}})
 
 lock = threading.Lock()
 """
