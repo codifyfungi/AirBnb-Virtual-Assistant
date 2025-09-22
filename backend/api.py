@@ -130,7 +130,7 @@ def host_answers():
     host_context = "\n".join([f"Host answer: {a}" for a in answers])
     prompt = f"{latest_msg}\n\n{host_context}"
     human_msg = HumanMessage(content=prompt)
-    reply = [sys_msg, human_msg]
+    reply = str(sys_msg) + '|' + str(human_msg)
     return jsonify({"response": reply})
 @app.route('/api/watch-inbox', methods=['POST'])
 def watch_inbox():
