@@ -29,10 +29,6 @@ function App() {
           const { thread, messages } = await (await fetch(`${API_BASE_URL}/api/thread`)).json()
           setThreadInfo(thread)
           setThreadMessages(messages)
-          if (prevThreadId.current !== newId) {
-            setResponse('')
-            prevThreadId.current = newId
-          }
         }
       } catch (err) {
         console.error('Polling error:', err)
