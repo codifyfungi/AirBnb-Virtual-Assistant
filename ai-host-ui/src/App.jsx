@@ -97,6 +97,7 @@ function App() {
         } finally {
           setLoading(false)
         }
+        return
       }
     } catch (err) {
       setError(err.message)
@@ -106,7 +107,9 @@ function App() {
   }
 
   const handleAnswerSubmit = async () => {
-    if (!query.trim()) return
+                setQuestions([])
+                setAnswers([])
+                setUnanswered([])
     const newAnswers = [...hostAnswers, query.trim()]
     setHostAnswers(newAnswers)
     setQuery('')

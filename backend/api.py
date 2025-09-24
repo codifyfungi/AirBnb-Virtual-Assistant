@@ -139,15 +139,14 @@ def host_answers():
     thread_context = "\n".join(context_lines)
     # Compose LLM prompt
     llm = get_openrouter_chat()
-    sys_msg = SystemMessage(content="Given the following conversation and questions and answers for background knowledge, write a warm, helpful response to the guest.")
-    # Include question/answer pairs in host context (handle empty case)
+    sys_msg = SystemMessage(content="Given the following Airbnb message thread and the host's clarifying answers, write a warm, helpful response to the guest. The Q/A pairs are the host's answers to clarifying questions about the guest's needs or plans. Use them to inform your reply.")
+    # Section off the message thread and Q/A pairs
+    prompt = f"--- Airbnb Message Thread ---\n{thread_context}\n\n--- Host Clarifying Q/A (these are the host's answers to clarifying questions about the guest's needs or plans) ---\n"
     if questions and answers:
         host_context = "\n".join([
             f"Q: {q}\nA: {a}" for q, a in zip(questions, answers) if a
         ])
-        prompt = f"{thread_context}\n\n{host_context}"
-    else:
-        prompt = thread_context
+        prompt += host_context
     human_msg = HumanMessage(content=prompt)
     reply = llm.invoke([sys_msg, human_msg])
     return jsonify({"response": reply.content if hasattr(reply, 'content') else str(reply)})
