@@ -25,7 +25,11 @@ function App() {
         const resCT = await fetch(`${API_BASE_URL}/api/current-thread`)
         if (resCT.ok) {
           const { threadId: newId } = await resCT.json()
-          setThreadId(newId)
+          // If thread changed, clear assistant response
+          setThreadId(prev => {
+            if (prev !== newId) setResponse("");
+            return newId;
+          });
           if (!newId) return
           await fetch(`${API_BASE_URL}/api/watch-inbox`, { method: 'POST' })
           const { thread, messages } = await (await fetch(`${API_BASE_URL}/api/thread`)).json()
@@ -36,7 +40,6 @@ function App() {
         console.error('Polling error:', err)
         setError(err.message)
       } finally {
-        // disable loading spinner only once after first poll
         setLoading(false)
       }
     }
