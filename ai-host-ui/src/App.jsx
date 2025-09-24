@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL
-//const API_BASE_URL = 'http://localhost:5000'// default to localhost if env var is not set
+//const API_BASE_URL = import.meta.env.VITE_API_URL
+const API_BASE_URL = 'http://localhost:5000'// default to localhost if env var is not set
 function App() {
   const [threadId, setThreadId] = useState(null)
   const [threadInfo, setThreadInfo] = useState(null)
