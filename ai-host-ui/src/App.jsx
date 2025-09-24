@@ -80,6 +80,24 @@ function App() {
       setCurrentQIndex(0)
       setHostAnswers([])
       setQuery('')
+      // If there are no questions, immediately call host_answers to get a response
+      if ((data.questions || []).length === 0) {
+        setLoading(true)
+        try {
+          const res2 = await fetch(`${API_BASE_URL}/api/host-answers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hostAnswers: [], questions: [] })
+          })
+          if (!res2.ok) throw new Error('Failed to get LLM response')
+          const data2 = await res2.json()
+          setResponse(data2.response)
+        } catch (err) {
+          setError(err.message)
+        } finally {
+          setLoading(false)
+        }
+      }
     } catch (err) {
       setError(err.message)
     } finally {

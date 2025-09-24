@@ -1,6 +1,7 @@
 const KEY = "airbnb_last";                         // where we store the single latest URL
 const AIRBNB_GUEST_MSG_RE = /^https?:\/\/www\.airbnb\.com\/hosting\/messages\/(\d+)/i;
-const API_BASE = 'https://airbnb-virtual-assistant.onrender.com';       // your Flask backend
+//const API_BASE = 'https://airbnb-virtual-assistant.onrender.com';       // your Flask backend
+const API_BASE = 'http://localhost:5000';       // your Flask backend
 
 // Fires whenever Chrome adds a page to history
 chrome.history.onVisited.addListener(async (item) => {

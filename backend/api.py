@@ -9,6 +9,8 @@ import re
 import threading
 from bs4 import BeautifulSoup
 from email.utils import parsedate_to_datetime
+from transformers import pipeline
+
 
 from collections import defaultdict
 import chromadb
@@ -124,26 +126,31 @@ def host_answers():
                 documents=[q],
                 metadatas=[{"answer": a, "thread_id": thread_id, "question": q, "index": i}]
             )
-    # Fetch latest message from thread
+    # Fetch entire message thread for context
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT content, name, host FROM messages WHERE reservation_id = ? ORDER BY uid DESC LIMIT 1", (thread_id,))
-    row = cursor.fetchone()
+    cursor.execute("SELECT content, name, host FROM messages WHERE reservation_id = ? ORDER BY uid ASC", (thread_id,))
+    rows = cursor.fetchall()
     conn.close()
-    if row:
-        content, name, is_host = row
-        role = "host" if is_host else "guest"
-        latest_msg = f"{role.title()}: {name}: {content}"
-    else:
-        latest_msg = ""
+    context_lines = []
+    for content, name, is_host in rows:
+        role = "Host" if is_host else "Guest"
+        context_lines.append(f"{role}: {name}: {content}")
+    thread_context = "\n".join(context_lines)
     # Compose LLM prompt
     llm = get_openrouter_chat()
-    sys_msg = SystemMessage(content="Given the following latest message and host's answers, write a warm, helpful response to the guest.")
-    host_context = "\n".join([f"Host answer: {a}" for a in answers if a])
-    prompt = f"{latest_msg}\n\n{host_context}"
+    sys_msg = SystemMessage(content="Given the following conversation and questions and answers for background knowledge, write a warm, helpful response to the guest.")
+    # Include question/answer pairs in host context (handle empty case)
+    if questions and answers:
+        host_context = "\n".join([
+            f"Q: {q}\nA: {a}" for q, a in zip(questions, answers) if a
+        ])
+        prompt = f"{thread_context}\n\n{host_context}"
+    else:
+        prompt = thread_context
     human_msg = HumanMessage(content=prompt)
     reply = llm.invoke([sys_msg, human_msg])
-    return jsonify({"response": reply})
+    return jsonify({"response": reply.content if hasattr(reply, 'content') else str(reply)})
 @app.route('/api/watch-inbox', methods=['POST'])
 def watch_inbox():
     if not lock.acquire(blocking=False):
@@ -400,7 +407,7 @@ def get_openrouter_chat() -> ChatOpenAI:
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     API_URL = "https://openrouter.ai/api/v1"
     return ChatOpenAI(
-        model="deepseek/deepseek-chat-v3-0324:free",
+        model="deepseek/deepseek-v3.1-terminus",
         openai_api_key=OPENROUTER_API_KEY,
         openai_api_base=API_URL,
         temperature=0.7,
@@ -450,17 +457,29 @@ def get_thread():
 def get_questions():
     """Fetch the last guest message for the current thread, return questions, and prefill answers from vector DB if available."""
     try:
-        # For demo, use fixed questions. Replace with LLM logic as needed.
-        questions = [
-            "What time is the guest planning to arrive?",
-            "Does the guest need any special accommodations?",
-            "Will the guest be bringing additional guests?"
-        ]
-        # Initialize ChromaDB client and collection for this thread
+        # Fetch the last guest message for the current thread
         thread_id = current_thread_id
         client = chromadb.Client()
         embedding_function = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-        coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=embedding_function)
+        coll = client.get_or_create_collection(name=f"host_facts_{thread_id}", embedding_function=embedding_function)
+        # Get entire message thread from DB, label as host/guest
+        conn = sqlite3.connect("airbnb.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT content, host FROM messages WHERE reservation_id = ? ORDER BY uid ASC", (thread_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        context_lines = []
+        for content, is_host in rows:
+            label = "Host" if is_host else "Guest"
+            context_lines.append(f"{label}: {content}")
+        context_text = "\n".join(context_lines)
+        # Use the LLM to generate questions from the last three messages
+        llm = get_openrouter_chat()
+        sys_msg = SystemMessage(content="You are an airbnb ai assistant, you are trying to respond to the message thread appropriately. Direct your questions to the host not the guest to obtain sufficient knowledge to appropriately respond. Note, you may not need to ask any questions to respond appropriately. Return ONLY a JSON array of questions, e.g. ['Question 1', 'Question 2', 'Question 3'].")
+        human_msg = HumanMessage(content=context_text)
+        llm_response = llm.invoke([sys_msg, human_msg])
+        raw = llm_response.content.strip()
+        questions = json.loads(raw)
         # Check vector DB for each question (match on question, retrieve answer from metadata)
         answers = []
         unanswered = []
