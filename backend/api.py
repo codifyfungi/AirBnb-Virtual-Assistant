@@ -466,12 +466,16 @@ def get_questions():
         unanswered = []
         THRESHOLD = 0.9
         for i, q in enumerate(questions):
-            res = coll.query(query_texts=[q], n_results=1, include=["metadatas", "documents", "distances"])
-            meta = res["metadatas"][0][0] if res["metadatas"] and res["metadatas"][0] else None
-            distance = res["distances"][0][0] if res["distances"] and res["distances"][0] else None
-            if meta and distance is not None and distance < THRESHOLD:
-                answers.append(meta.get("answer"))
-            else:
+            try:
+                res = coll.query(query_texts=[q], n_results=1, include=["metadatas", "documents", "distances"])
+                meta = res["metadatas"][0][0] if res["metadatas"] and res["metadatas"][0] else None
+                distance = res["distances"][0][0] if res["distances"] and res["distances"][0] else None
+                if meta and distance is not None and distance < THRESHOLD:
+                    answers.append(meta.get("answer"))
+                else:
+                    answers.append(None)
+                    unanswered.append(q)
+            except Exception as err:
                 answers.append(None)
                 unanswered.append(q)
         return jsonify({"questions": questions, "answers": answers, "unanswered": unanswered})
