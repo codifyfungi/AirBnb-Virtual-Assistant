@@ -12,7 +12,7 @@ from email.utils import parsedate_to_datetime
 
 from collections import defaultdict
 import chromadb
-from chromadb.utils.embedding_functions import HuggingFaceEmbeddingFunction
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from langchain_core.messages import trim_messages
 from dotenv import load_dotenv
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
@@ -115,8 +115,8 @@ def host_answers():
     thread_id = current_thread_id
     # Store question/answer pairs in vector DB (question as doc, answer as metadata)
     client = chromadb.Client()
-    hf = HuggingFaceEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-    coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=hf)
+    embedding_function = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+    coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=embedding_function)
     for i, (q, a) in enumerate(zip(questions, answers)):
         if a:
             coll.upsert(
@@ -459,8 +459,8 @@ def get_questions():
         # Initialize ChromaDB client and collection for this thread
         thread_id = current_thread_id
         client = chromadb.Client()
-        hf = HuggingFaceEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-        coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=hf)
+        embedding_function = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+        coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=embedding_function)
         # Check vector DB for each question (match on question, retrieve answer from metadata)
         answers = []
         unanswered = []
