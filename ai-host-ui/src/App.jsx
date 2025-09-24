@@ -132,9 +132,7 @@ function App() {
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         {/* Left panel: messages */}
         <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
-          {/* Only show loading if polling, not when answering questions */}
-          {loading && questions.length === 0 && <p>Loading...</p>}
-          {error && <p style={{ color: 'red' }}>{error}</p>}
+          {/* No loading or error display in left panel */}
           {threadInfo ? (
             <div style={{ textAlign: 'left' }}>
               {threadMessages.map((msg, idx) => (
