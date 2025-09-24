@@ -111,7 +111,19 @@ def host_answers():
     """Accept host answers, use latest message as context for LLM reply (no vector DB)."""
     data = request.get_json()
     answers = data.get('hostAnswers', [])
+    questions = data.get('questions', [])
     thread_id = current_thread_id
+    # Store question/answer pairs in vector DB (question as doc, answer as metadata)
+    client = chromadb.Client()
+    hf = HuggingFaceEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+    coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=hf)
+    for i, (q, a) in enumerate(zip(questions, answers)):
+        if a:
+            coll.upsert(
+                ids=[f"{thread_id}_qa_{i}"],
+                documents=[q],
+                metadatas=[{"answer": a, "thread_id": thread_id, "question": q, "index": i}]
+            )
     # Fetch latest message from thread
     conn = sqlite3.connect("airbnb.db")
     cursor = conn.cursor()
@@ -127,10 +139,10 @@ def host_answers():
     # Compose LLM prompt
     llm = get_openrouter_chat()
     sys_msg = SystemMessage(content="Given the following latest message and host's answers, write a warm, helpful response to the guest.")
-    host_context = "\n".join([f"Host answer: {a}" for a in answers])
+    host_context = "\n".join([f"Host answer: {a}" for a in answers if a])
     prompt = f"{latest_msg}\n\n{host_context}"
     human_msg = HumanMessage(content=prompt)
-    reply = str(sys_msg) + '|' + str(human_msg)
+    reply = llm.invoke([sys_msg, human_msg])
     return jsonify({"response": reply})
 @app.route('/api/watch-inbox', methods=['POST'])
 def watch_inbox():
@@ -436,36 +448,33 @@ def get_thread():
 
 @app.route('/api/getquestions', methods=['GET'])
 def get_questions():
-    """Fetch the last guest message for the current thread and return clarifying questions."""
+    """Fetch the last guest message for the current thread, return questions, and prefill answers from vector DB if available."""
     try:
-        # --- Original dynamic LLM-based logic (commented out for testing) ---
-        # conn = sqlite3.connect("airbnb.db")
-        # cursor = conn.cursor()
-        # cursor.execute(
-        #     "SELECT content FROM messages WHERE reservation_id=? AND host=0 ORDER BY uid DESC LIMIT 1",  
-        #     (current_thread_id,)
-        # )
-        # row = cursor.fetchone()
-        # conn.close()
-        # last_msg = row[0] if row else ""
-        # llm = get_openrouter_chat()
-        # sys_msg = SystemMessage(
-        #     content="Given this guest's last message, return a JSON list of clarifying questions to ask the host.(It could be empty if no questions are needed.)"
-        # )
-        # human_msg = HumanMessage(content=last_msg)
-        # raw = llm.invoke([sys_msg, human_msg])
-        # try:
-        #     questions = json.loads(raw)
-        # except Exception:
-        #     questions = [q.strip('- ').strip() for q in raw.splitlines() if q.strip()]
-        # return jsonify({"questions": questions})
-        # --- Testing stub: return a fixed set of clarifying questions ---
+        # For demo, use fixed questions. Replace with LLM logic as needed.
         questions = [
             "What time is the guest planning to arrive?",
             "Does the guest need any special accommodations?",
             "Will the guest be bringing additional guests?"
         ]
-        return jsonify({"questions": questions})
+        # Initialize ChromaDB client and collection for this thread
+        thread_id = current_thread_id
+        client = chromadb.Client()
+        hf = HuggingFaceEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+        coll = client.get_or_create_collection(name=f"guest_facts_{thread_id}", embedding_function=hf)
+        # Check vector DB for each question (match on question, retrieve answer from metadata)
+        answers = []
+        unanswered = []
+        THRESHOLD = 0.9
+        for i, q in enumerate(questions):
+            res = coll.query([q], n_results=1, include=["metadatas", "documents", "distances"])
+            meta = res["metadatas"][0][0] if res["metadatas"] and res["metadatas"][0] else None
+            distance = res["distances"][0][0] if res["distances"] and res["distances"][0] else None
+            if meta and distance is not None and distance < THRESHOLD:
+                answers.append(meta.get("answer"))
+            else:
+                answers.append(None)
+                unanswered.append(q)
+        return jsonify({"questions": questions, "answers": answers, "unanswered": unanswered})
     except Exception as e:
         print(f"Error processing query: {e}")
         return jsonify({"error": str(e)}), 500

@@ -12,8 +12,10 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [questions, setQuestions] = useState([])
+  const [answers, setAnswers] = useState([]) // prefilled answers from backend
+  const [unanswered, setUnanswered] = useState([]) // unanswered questions
   const [currentQIndex, setCurrentQIndex] = useState(0)
-  const [hostAnswers, setHostAnswers] = useState([])
+  const [hostAnswers, setHostAnswers] = useState([]) // answers to unanswered only
   const prevThreadId = useRef(null)
 
   // combined polling: get current thread, ingest new emails, refresh thread details
@@ -73,6 +75,8 @@ function App() {
       if (!res.ok) throw new Error('Failed to fetch questions')
       const data = await res.json()
       setQuestions(data.questions || [])
+      setAnswers(data.answers || [])
+      setUnanswered(data.unanswered || [])
       setCurrentQIndex(0)
       setHostAnswers([])
       setQuery('')
@@ -90,14 +94,17 @@ function App() {
     setQuery('')
     const nextQ = currentQIndex + 1
     setCurrentQIndex(nextQ)
-    // If that was the last question, send to backend
-    if (nextQ === questions.length) {
+    // If that was the last unanswered question, send only unanswered Q/A pairs to backend
+    if (nextQ === unanswered.length) {
       setLoading(true)
       try {
         const res = await fetch(`${API_BASE_URL}/api/host-answers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hostAnswers: newAnswers })
+          body: JSON.stringify({
+            hostAnswers: newAnswers,
+            questions: unanswered
+          })
         })
         if (!res.ok) throw new Error('Failed to get LLM response')
         const data = await res.json()
@@ -165,34 +172,50 @@ function App() {
           <div style={{ flex: 1, minHeight: 0, padding: '20px', overflowY: 'auto' }}>
             {questions.length === 0 ? (
               <p style={{ color: '#888', textAlign: 'center' }}>No questions generated.</p>
-            ) : currentQIndex < questions.length ? (
-              <div style={{ marginBottom: '16px' }}>
-                <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-                  {questions[currentQIndex]}
-                </p>
-                {hostAnswers[currentQIndex] && (
-                  <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px' }}>
-                    {hostAnswers[currentQIndex]}
+            ) : (
+              <>
+                {/* Show pre-answered questions and answers */}
+                {questions.map((q, idx) =>
+                  answers[idx] ? (
+                    <div key={idx} style={{ marginBottom: '12px', background: '#f6ffed', borderRadius: '6px', padding: '8px' }}>
+                      <div style={{ fontWeight: 'bold' }}>{q}</div>
+                      <div style={{ color: '#389e0d' }}>Answered: {answers[idx]}</div>
+                    </div>
+                  ) : null
+                )}
+                {/* Show unanswered question for input */}
+                {currentQIndex < unanswered.length ? (
+                  <div style={{ marginBottom: '16px' }}>
+                    <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                      {unanswered[currentQIndex]}
+                    </p>
+                    {hostAnswers[currentQIndex] && (
+                      <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px' }}>
+                        {hostAnswers[currentQIndex]}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', marginTop: '40px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Assistant Response:</div>
+                    <div style={{ backgroundColor: '#d9f7be', padding: '12px', borderRadius: '8px', display: 'inline-block', marginBottom: '16px' }}>
+                      {response}
+                    </div>
+                    <br />
+                    <button onClick={() => {
+                      setQuestions([])
+                      setAnswers([])
+                      setUnanswered([])
+                      setCurrentQIndex(0)
+                      setHostAnswers([])
+                      setQuery('')
+                      setResponse('')
+                    }} style={{ marginTop: '12px', padding: '8px 16px' }}>
+                      Reset
+                    </button>
                   </div>
                 )}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', marginTop: '40px' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Assistant Response:</div>
-                <div style={{ backgroundColor: '#d9f7be', padding: '12px', borderRadius: '8px', display: 'inline-block', marginBottom: '16px' }}>
-                  {response}
-                </div>
-                <br />
-                <button onClick={() => {
-                  setQuestions([])
-                  setCurrentQIndex(0)
-                  setHostAnswers([])
-                  setQuery('')
-                  setResponse('')
-                }} style={{ marginTop: '12px', padding: '8px 16px' }}>
-                  Reset
-                </button>
-              </div>
+              </>
             )}
           </div>
           {/* search bar / Q&A at bottom */}
@@ -204,21 +227,23 @@ function App() {
                 Generate Response
               </button>
             ) : (
-              <>
-                <input
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleAnswerSubmit()}
-                  placeholder='Your answer'
-                  style={{ width: '80%', padding: '8px' }}
-                />
-                <button
-                  onClick={handleAnswerSubmit}
-                  style={{ marginLeft: '8px', padding: '8px 16px' }}
-                >
-                  Submit Answer
-                </button>
-              </>
+              currentQIndex < unanswered.length ? (
+                <>
+                  <input
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAnswerSubmit()}
+                    placeholder='Your answer'
+                    style={{ width: '80%', padding: '8px' }}
+                  />
+                  <button
+                    onClick={handleAnswerSubmit}
+                    style={{ marginLeft: '8px', padding: '8px 16px' }}
+                  >
+                    Submit Answer
+                  </button>
+                </>
+              ) : null
             )}
           </div>
         </div>
