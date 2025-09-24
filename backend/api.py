@@ -478,6 +478,7 @@ def get_questions():
             except Exception as err:
                 answers.append(None)
                 unanswered.append(q)
+        print(f"Questions: {questions}, Answers: {answers}, Unanswered: {unanswered}")
         return jsonify({"questions": questions, "answers": answers, "unanswered": unanswered})
     except Exception as e:
         print(f"Error processing query: {e}")
